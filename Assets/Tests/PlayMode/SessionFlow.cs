@@ -190,25 +190,4 @@ public class SessionFlow
         Assert.IsFalse(S.Hud.IsDialogueOpen());
     }
 
-    [UnityTest]
-    public IEnumerator CompassShowsCardinals()
-    {
-        yield return null;
-        var S = Game.Session;
-        S.NewGame(2);
-        yield return null;
-        var strip = GameObject.Find("HudCanvas/Hud/Compass");
-        Assert.IsNotNull(strip, "no compass strip");
-        Assert.IsTrue(strip.activeInHierarchy);
-        S.Hud.ShowCompass(0f, -1f);
-        var n = GameObject.Find("HudCanvas/Hud/Compass/CardN");
-        Assert.IsNotNull(n);
-        Assert.IsTrue(n.activeSelf, "N should center when facing north");
-        S.Hud.ShowCompass(1f, 0f);
-        var e = GameObject.Find("HudCanvas/Hud/Compass/CardE");
-        Assert.IsNotNull(e);
-        Assert.IsTrue(e.activeSelf, "E should center when facing east");
-        S.ToTitle();
-        yield return null;
-    }
 }

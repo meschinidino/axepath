@@ -52,13 +52,6 @@ namespace AxePath
         private float promptHoldUntil;
         private float crossUntil;
         private float hurtUntil;
-        private GameObject compassStrip;
-        private Text[] compassLabels;
-        private RectTransform[] compassRts;
-        private static readonly string[] compassNames = new string[] { "N", "E", "S", "W" };
-        private static readonly float[] compassAngles = new float[] { 0f, 90f, 180f, 270f };
-        private const float CompassPxPerDeg = 1.6f;
-        private const float CompassHalfW = 170f;
 
         public static Font GetFont()
         {
@@ -244,30 +237,6 @@ namespace AxePath
             bannerRt.offsetMin = new Vector2(12f, 0f);
             bannerRt.offsetMax = new Vector2(-12f, 0f);
             bannerPanel.SetActive(false);
-            compassStrip = MkPanel(hudRoot.transform, "Compass", 0.5f);
-            Place(compassStrip.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 360f, 30f);
-            compassStrip.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -54f);
-            compassStrip.AddComponent<RectMask2D>();
-            compassStrip.GetComponent<Image>().raycastTarget = false;
-            compassLabels = new Text[4];
-            compassRts = new RectTransform[4];
-            for (int i = 0; i < 4; i++)
-            {
-                var t = MkText(compassStrip.transform, "Card" + compassNames[i], 20, TextAnchor.MiddleCenter);
-                t.text = compassNames[i];
-                t.color = i == 0 ? Orange : new Color(1f, 1f, 1f, 0.9f);
-                t.raycastTarget = false;
-                Place(t.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 40f, 26f);
-                compassLabels[i] = t;
-                compassRts[i] = t.GetComponent<RectTransform>();
-            }
-            var caret = new GameObject("Caret");
-            caret.transform.SetParent(compassStrip.transform, false);
-            var caretImg = caret.AddComponent<Image>();
-            caretImg.color = Orange;
-            caretImg.raycastTarget = false;
-            Place(caret.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 4f, 10f);
-            caret.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 2f);
 
             dialogueBox = MkPanel(hudRoot.transform, "Dialogue", 0.85f);
             Place(dialogueBox.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 720f, 110f);
@@ -563,19 +532,6 @@ namespace AxePath
             else bannerText.transform.parent.gameObject.SetActive(false);
         }
 
-        public void ShowCompass(float fx, float fz)
-        {
-            if (compassLabels == null) return;
-            float heading = Mathf.Atan2(fx, -fz) * 57.29578f;
-            if (heading < 0f) heading += 360f;
-            for (int i = 0; i < 4; i++)
-            {
-                float x = -Mathf.DeltaAngle(heading, compassAngles[i]) * CompassPxPerDeg;
-                bool vis = Mathf.Abs(x) <= CompassHalfW;
-                if (compassLabels[i].gameObject.activeSelf != vis) compassLabels[i].gameObject.SetActive(vis);
-                if (vis) compassRts[i].anchoredPosition = new Vector2(x, 1f);
-            }
-        }
         public void ShowDialogue(string name, string line)
         {
             dialogueName.text = name;

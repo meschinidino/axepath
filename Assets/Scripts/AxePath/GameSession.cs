@@ -632,7 +632,6 @@ namespace AxePath
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             playT += dt;
             Player.Tick(dt);
-            var cf = Player.Facing(); Hud.ShowCompass(cf.x, cf.z);
             var p = Player.EyeXZ();
             var spots = world.spots;
             if (!visitedYard && Gdist(p.x, p.z, spots.yard.x, spots.yard.z) < 6f)
