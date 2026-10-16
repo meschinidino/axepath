@@ -232,32 +232,83 @@ namespace AxePath
             go.AddComponent<MeshFilter>().sharedMesh = m;
             go.AddComponent<MeshRenderer>().sharedMaterial = MeshUtil.Mat(0x24382a);
         }
-        public static GameWorld Build(Transform parent)
+        // Shared build state threaded through the per-area builders below.
+        // One instance per Build call; the builders must run in the order
+        // Build calls them because the Mulberry draw order is load-bearing.
+        private sealed class BuildCtx
         {
-            var world = new GameWorld();
-            var root = new GameObject("World");
-            root.transform.SetParent(parent, false);
-            world.root = root;
-            var R = root.transform;
-            void Solid(float x, float z, float r) { world.colliders.Add(new Circle(x, z, r)); }
-            var refs = world.refs;
+            public readonly GameWorld world;
+            public readonly Transform R;
+            public Mesh dirtMesh;
+            public Mesh trunkMesh;
+            public Mesh canopyMesh;
+            public Mulberry rand;
+            public float[,] clearings;
+            public GameObject forest;
+            public List<Vector3> treePos;
 
-            // Ground plus dirt patches.
-            BuildGround(R);
-            var dirtMesh = MeshUtil.TaperMesh(1f, 1f, 0.04f);
-            void Dirt(float x, float z, float r)
+            public BuildCtx(GameWorld world, Transform R)
+            {
+                this.world = world;
+                this.R = R;
+            }
+
+            public void Solid(float x, float z, float r) { world.colliders.Add(new Circle(x, z, r)); }
+
+            public void Dirt(float x, float z, float r)
             {
                 var p = MeshUtil.Tapered(R, "Dirt", dirtMesh, 0x4a3d28, x, GroundH(x, z) + 0.02f, z);
                 p.transform.localScale = new Vector3(r, 1f, r);
                 float slope = (GroundH(x, z + 1f) - GroundH(x, z - 1f)) * 0.5f;
                 p.transform.localRotation = Quaternion.Euler(-Mathf.Atan(slope) * 57.29578f, 0f, 0f);
             }
-            Dirt(-6f, 38f, 7f);
-            Dirt(8f, 38f, 6f);
-            Dirt(0f, 42f, 5f);
-            Dirt(0f, -58f, 9f);
-            Dirt(16f, -68f, 7f);
-            var rockPatch = MeshUtil.Tapered(R, "RockPatch", dirtMesh, 0x3a3f46, 0f, GroundH(0f, -62f) + 0.015f, -62f);
+
+            public void Peak(float x, float z, float r, float h)
+            {
+                world.refs.peaks.Add(new Circle(x, z, r));
+                var g = new GameObject("Peak");
+                g.transform.SetParent(R, false);
+                g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
+                g.transform.localRotation = Quaternion.Euler(0f, (x * 7f + z * 3f) % 60f, 0f);
+                var baseMesh = MeshUtil.TaperMesh(0.02f, r, h * 0.62f);
+                MeshUtil.Tapered(g.transform, "Base", baseMesh, 0x646c7a, 0f, h * 0.31f, 0f);
+                var midMesh = MeshUtil.TaperMesh(0.02f, r * 0.62f, h * 0.42f);
+                MeshUtil.Tapered(g.transform, "Mid", midMesh, 0x585f6c, 1.2f, h * 0.55f, -0.8f);
+                var capMesh = MeshUtil.TaperMesh(0.02f, r * 0.28f, h * 0.3f);
+                MeshUtil.Tapered(g.transform, "Cap", capMesh, 0xa8b4cc, 1.6f, h * 0.78f, -1f);
+            }
+        }
+
+        public static GameWorld Build(Transform parent)
+        {
+            var world = new GameWorld();
+            var root = new GameObject("World");
+            root.transform.SetParent(parent, false);
+            world.root = root;
+            var ctx = new BuildCtx(world, root.transform);
+            BuildShared(ctx);
+            BuildVillage(ctx);
+            BuildForest(ctx);
+            BuildCave(ctx);
+            BuildGrove(ctx);
+            BuildBackdrop(ctx);
+            BuildInfill(ctx);
+            return world;
+        }
+
+        private static void BuildShared(BuildCtx ctx)
+        {
+            var R = ctx.R;
+
+            // Ground plus dirt patches.
+            BuildGround(R);
+            ctx.dirtMesh = MeshUtil.TaperMesh(1f, 1f, 0.04f);
+            ctx.Dirt(-6f, 38f, 7f);
+            ctx.Dirt(8f, 38f, 6f);
+            ctx.Dirt(0f, 42f, 5f);
+            ctx.Dirt(0f, -58f, 9f);
+            ctx.Dirt(16f, -68f, 7f);
+            var rockPatch = MeshUtil.Tapered(R, "RockPatch", ctx.dirtMesh, 0x3a3f46, 0f, GroundH(0f, -62f) + 0.015f, -62f);
             rockPatch.transform.localScale = new Vector3(10f, 1f, 10f);
 
             // Walking path.
@@ -265,7 +316,13 @@ namespace AxePath
                 {0,42},{0,36},{-1,30},{0,24},{1,18},{1,12},{2,6},
                 {1,0},{1,-8},{0,-16},{0,-24},{-1,-32},{0,-40},{0,-48},{0,-54},
             };
-            for (int i = 0; i < route.GetLength(0); i++) Dirt(route[i, 0], route[i, 1], 2.2f);
+            for (int i = 0; i < route.GetLength(0); i++) ctx.Dirt(route[i, 0], route[i, 1], 2.2f);
+        }
+
+        private static void BuildVillage(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var refs = ctx.world.refs;
 
             // Lumber yard: log piles, axe stand, the yard axe.
             var logMesh = MeshUtil.TaperMesh(0.35f, 0.35f, 4f);
@@ -279,7 +336,7 @@ namespace AxePath
                     var log = MeshUtil.Tapered(R, "Log", logMesh, 0x5a4630, lx, 0.4f + (i == 2 ? 0.62f : 0f), lz + (i == 0 ? -0.4f : i == 1 ? 0.4f : 0f));
                     log.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
                 }
-                Solid(lx, lz, 2.2f);
+                ctx.Solid(lx, lz, 2.2f);
             }
             var stand = new GameObject("Stand");
             stand.transform.SetParent(R, false);
@@ -294,7 +351,7 @@ namespace AxePath
             var handleMesh = MeshUtil.TaperMesh(0.05f, 0.06f, 1.1f);
             MeshUtil.Tapered(yardAxe.transform, "Handle", handleMesh, 0x6b5136, 0f, 0f, 0f);
             MeshUtil.Box(yardAxe.transform, "Head", 0.34f, 0.22f, 0.08f, 0x9aa0a6, 0.14f, 0.42f, 0f);
-            Solid(-6f, 36f, 0.9f);
+            ctx.Solid(-6f, 36f, 0.9f);
             refs.axeMesh = yardAxe;
 
             // Library lean-to.
@@ -309,7 +366,7 @@ namespace AxePath
             roof.transform.localRotation = Quaternion.Euler(6.9f, 0f, 0f);
             MeshUtil.Box(lean.transform, "Desk", 0.7f, 1.0f, 0.5f, 0x3a2f22, 0f, 0.5f, -0.3f);
             refs.bookMesh = MeshUtil.Box(lean.transform, "Book", 0.5f, 0.1f, 0.36f, 0xd9cfae, 0f, 1.08f, -0.3f);
-            Solid(7f, 38f, 1.6f);
+            ctx.Solid(7f, 38f, 1.6f);
 
             // Two village huts.
             var hutRoofMesh = MeshUtil.TaperMesh(0.02f, 3.1f, 1.8f);
@@ -324,16 +381,25 @@ namespace AxePath
                 MeshUtil.Box(hut.transform, "Walls", 4f, 2.4f, 3.4f, 0x4f4234, 0f, 1.2f, 0f);
                 var hr = MeshUtil.Tapered(hut.transform, "Roof", hutRoofMesh, 0x3a2f22, 0f, 3.3f, 0f);
                 hr.transform.localRotation = Quaternion.Euler(0f, 45f, 0f);
-                Solid(hx, hz, 3.2f);
+                ctx.Solid(hx, hz, 3.2f);
             }
+        }
+
+        private static void BuildForest(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var refs = ctx.world.refs;
 
             // Forest: seeded positions (same RNG order as the slice).
             var rand = new Mulberry(1337);
+            ctx.rand = rand;
             float[,] clearings = new float[,] {
                 {-6,38,10},{8,38,9},{0,42,7},{0,-58,13},
                 {16,-68,10},{-14,0,7},{2,5,5},{0,28,7},
             };
+            ctx.clearings = clearings;
             var treePos = new List<Vector3>();
+            ctx.treePos = treePos;
             int guard = 0;
             while (treePos.Count < 210 && guard++ < 4000)
             {
@@ -352,8 +418,11 @@ namespace AxePath
             }
             var trunkMesh = MeshUtil.TaperMesh(0.28f, 0.42f, 3.2f);
             var canopyMesh = MeshUtil.TaperMesh(0.02f, 2.1f, 5.2f);
+            ctx.trunkMesh = trunkMesh;
+            ctx.canopyMesh = canopyMesh;
             var forest = new GameObject("Forest");
             forest.transform.SetParent(R, false);
+            ctx.forest = forest;
             foreach (var tp in treePos)
             {
                 var g = new GameObject("Tree");
@@ -368,7 +437,7 @@ namespace AxePath
                 int pick = (((int)(tp.x * 7f + tp.y * 13f)) % 3 + 3) % 3;
                 uint canopyCol = pick == 0 ? 0x41704au : (pick == 1 ? 0x2e5233u : 0x38663bu);
                 MeshUtil.Tapered(g.transform, "Canopy", canopyMesh, canopyCol, 0f, 5.4f, 0f);
-                Solid(tp.x, tp.y, 0.5f);
+                ctx.Solid(tp.x, tp.y, 0.5f);
             }
             refs.treeCount = treePos.Count;
 
@@ -385,7 +454,7 @@ namespace AxePath
                 g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
                 MeshUtil.Tapered(g.transform, "Trunk", landTrunk, 0x4a3a28, 0f, 2.2f, 0f);
                 MeshUtil.Tapered(g.transform, "Canopy", landCanopy, 0x35603a, 0f, 7f, 0f);
-                Solid(x, z, 0.8f);
+                ctx.Solid(x, z, 0.8f);
             }
 
             // Split rock (boxes stand in for the faceted rock until the art pass).
@@ -393,7 +462,7 @@ namespace AxePath
             rock1.transform.localRotation = Quaternion.Euler(0f, 30f, 8f);
             var rock2 = MeshUtil.Box(R, "Rock", 1.6f, 1.3f, 1.4f, 0x4a5058, 3.6f, GroundH(3.6f, 6.2f) + 0.65f, 6.2f);
             rock2.transform.localRotation = Quaternion.Euler(0f, -20f, -6f);
-            Solid(2f, 5f, 2.2f);
+            ctx.Solid(2f, 5f, 2.2f);
 
             // Axe blazes on trunks along the path.
             float[,] blazeSpots = new float[,] { {-3.4f,22f},{3.2f,14f},{-3.2f,2f},{3.4f,-10f},{-3.2f,-24f},{3.2f,-38f} };
@@ -422,6 +491,13 @@ namespace AxePath
             var guide = MeshUtil.Box(R, "GuideMark", 0.34f, 0.56f, 0.06f, 0xd9a441, 6.5f, GroundH(6.5f, -54.9f) + 1.6f, -54.9f);
             guide.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xd9a441);
             refs.guidePos = new Vec2(6.5f, -54.9f);
+        }
+
+        private static void BuildCave(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var refs = ctx.world.refs;
+            var rand = ctx.rand;
 
             // Cave shell.
             uint stone = 0x565c66;
@@ -429,15 +505,15 @@ namespace AxePath
             MeshUtil.Box(R, "CaveWall", 5f, 9f, 14f, stone, 6.5f, GroundH(6.5f, -62f) + 4.5f, -62f);
             MeshUtil.Box(R, "CaveWall", 18f, 9f, 4f, stone, 0f, GroundH(0f, -69f) + 4.5f, -69f);
             MeshUtil.Box(R, "CaveRoof", 18f, 3f, 16f, stone, 0f, GroundH(0f, -62f) + 9.5f, -62f);
-            Solid(-6.5f, -62f, 4.5f);
-            Solid(6.5f, -62f, 4.5f);
+            ctx.Solid(-6.5f, -62f, 4.5f);
+            ctx.Solid(6.5f, -62f, 4.5f);
             // Back-wall collar: the old mountain row used to block this side.
-            Solid(-6f, -69f, 3.5f);
-            Solid(0f, -69f, 3.5f);
-            Solid(6f, -69f, 3.5f);
+            ctx.Solid(-6f, -69f, 3.5f);
+            ctx.Solid(0f, -69f, 3.5f);
+            ctx.Solid(6f, -69f, 3.5f);
             // Front corners of the side walls; the mouth stays open.
-            Solid(-6.5f, -56f, 2.2f);
-            Solid(6.5f, -56f, 2.2f);
+            ctx.Solid(-6.5f, -56f, 2.2f);
+            ctx.Solid(6.5f, -56f, 2.2f);
             var glow = GameObject.CreatePrimitive(PrimitiveType.Quad);
             glow.name = "MouthGlow";
             glow.GetComponent<Renderer>().sharedMaterial = MeshUtil.Transparent(0xc1502e, 0.28f);
@@ -462,7 +538,7 @@ namespace AxePath
             MeshUtil.Box(forge.transform, "Body", 1.8f, 1.1f, 1.2f, 0x3a3f46, 0f, 0.55f, 0f);
             var coals = MeshUtil.Box(forge.transform, "Coals", 1.4f, 0.25f, 0.9f, 0xff7a2a, 0f, 1.15f, 0f);
             coals.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xff7a2a);
-            Solid(3f, -63f, 1.4f);
+            ctx.Solid(3f, -63f, 1.4f);
             var forgeLightGo = new GameObject("ForgeLight");
             forgeLightGo.transform.SetParent(R, false);
             forgeLightGo.transform.localPosition = new Vector3(3f, GroundH(3f, -63f) + 2.2f, -63f);
@@ -477,7 +553,7 @@ namespace AxePath
             anvil.transform.localPosition = new Vector3(0.5f, GroundH(0.5f, -64.5f), -64.5f);
             MeshUtil.Box(anvil.transform, "Base", 0.5f, 0.5f, 0.5f, 0x2c2f34, 0f, 0.25f, 0f);
             MeshUtil.Box(anvil.transform, "Top", 1.1f, 0.28f, 0.4f, 0x3a3f46, 0f, 0.62f, 0f);
-            Solid(0.5f, -64.5f, 0.85f);
+            ctx.Solid(0.5f, -64.5f, 0.85f);
 
             // Smoke column (positions consume the same RNG count as the slice).
             var smokePos = new List<Vector3>();
@@ -498,6 +574,12 @@ namespace AxePath
                 refs.smokePuffs.Add(puff);
                 refs.smokeBase.Add(smokePos[i]);
             }
+        }
+
+        private static void BuildGrove(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var refs = ctx.world.refs;
 
             // Ironwood grove past the cave. Pale trunks carry a faint warm
             // shimmer and dark crowns so the grove reads at night.
@@ -514,7 +596,7 @@ namespace AxePath
                 var iw = MeshUtil.Tapered(R, "Ironwood", ironMesh, 0xcfc4a8, x, GroundH(x, z) + 2.75f, z);
                 iw.GetComponent<Renderer>().sharedMaterial = ironBark;
                 MeshUtil.Tapered(R, "IronCrown", ironCrownMesh, 0x1f3a2a, x, GroundH(x, z) + 6.4f, z);
-                Solid(x, z, 0.45f);
+                ctx.Solid(x, z, 0.45f);
             }
             var ironLogMesh = MeshUtil.TaperMesh(0.32f, 0.32f, 2.6f);
             var ironLog = MeshUtil.Tapered(R, "IronLog", ironLogMesh, 0xcfc4a8, 16f, GroundH(16f, -68f) + 0.33f, -68f);
@@ -545,6 +627,12 @@ namespace AxePath
             }
             cairn.SetActive(false);
             refs.cairn = cairn;
+        }
+
+        private static void BuildBackdrop(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var rand = ctx.rand;
 
             // Wolf den dressing: pale bones.
             float[,] bones = new float[,] { {-14.5f,0.5f},{-13.2f,-0.8f},{-15f,-1.5f} };
@@ -558,32 +646,29 @@ namespace AxePath
             // bound. Bases sit outside playable space so no slope is ever
             // walk-through (the old footprint swallowed the cave and the
             // ironwood grove). Fixed offsets, no RNG.
-            void Peak(float x, float z, float r, float h)
-            {
-                refs.peaks.Add(new Circle(x, z, r));
-                var g = new GameObject("Peak");
-                g.transform.SetParent(R, false);
-                g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
-                g.transform.localRotation = Quaternion.Euler(0f, (x * 7f + z * 3f) % 60f, 0f);
-                var baseMesh = MeshUtil.TaperMesh(0.02f, r, h * 0.62f);
-                MeshUtil.Tapered(g.transform, "Base", baseMesh, 0x646c7a, 0f, h * 0.31f, 0f);
-                var midMesh = MeshUtil.TaperMesh(0.02f, r * 0.62f, h * 0.42f);
-                MeshUtil.Tapered(g.transform, "Mid", midMesh, 0x585f6c, 1.2f, h * 0.55f, -0.8f);
-                var capMesh = MeshUtil.TaperMesh(0.02f, r * 0.28f, h * 0.3f);
-                MeshUtil.Tapered(g.transform, "Cap", capMesh, 0xa8b4cc, 1.6f, h * 0.78f, -1f);
-            }
-            Peak(0f, -104f, 24f, 40f);
-            Peak(-54f, -96f, 15f, 26f);
-            Peak(54f, -96f, 15f, 26f);
+            ctx.Peak(0f, -104f, 24f, 40f);
+            ctx.Peak(-54f, -96f, 15f, 26f);
+            ctx.Peak(54f, -96f, 15f, 26f);
             float[,] talus = new float[,] { {-14f,-70f,2.2f},{10f,-73f,1.8f},{-6f,-72f,1.4f},{20f,-66f,2.6f},{-22f,-66f,2.4f} };
             for (int i = 0; i < talus.GetLength(0); i++)
             {
                 var t = MeshUtil.Box(R, "Talus", talus[i, 2], talus[i, 2] * 0.8f, talus[i, 2], 0x5a6068, talus[i, 0], GroundH(talus[i, 0], talus[i, 1]) + talus[i, 2] * 0.35f, talus[i, 1]);
                 t.transform.localRotation = Quaternion.Euler(0f, i * 37f, 0f);
-                Solid(talus[i, 0], talus[i, 1], talus[i, 2] * 0.7f);
+                ctx.Solid(talus[i, 0], talus[i, 1], talus[i, 2] * 0.7f);
             }
             // (No footprint colliders: the peaks stand outside the bounds,
             // and the cave walls below carry their own.)
+        }
+
+        private static void BuildInfill(BuildCtx ctx)
+        {
+            var R = ctx.R;
+            var refs = ctx.world.refs;
+            var clearings = ctx.clearings;
+            var forest = ctx.forest;
+            var trunkMesh = ctx.trunkMesh;
+            var canopyMesh = ctx.canopyMesh;
+            var treePos = ctx.treePos;
 
             // Second forest band on its own RNG stream, so the original
             // layout above is untouched bit-for-bit.
@@ -613,7 +698,7 @@ namespace AxePath
                 MeshUtil.Tapered(g.transform, "Trunk", trunkMesh, 0x4a3a28, 0f, 1.6f, 0f);
                 uint cc = rand2.Next() < 0.5f ? 0x2e5233u : 0x38663bu;
                 MeshUtil.Tapered(g.transform, "Canopy", canopyMesh, cc, 0f, 5.4f, 0f);
-                Solid(x, z, 0.5f);
+                ctx.Solid(x, z, 0.5f);
                 extra++;
             }
             refs.treeCount = treePos.Count + extra;
@@ -651,7 +736,7 @@ namespace AxePath
                 float sz = aRocks[i, 2];
                 var t = MeshUtil.Box(R, "ApproachRock", sz, sz * 0.75f, sz, 0x5a6068, aRocks[i, 0], GroundH(aRocks[i, 0], aRocks[i, 1]) + sz * 0.3f, aRocks[i, 1]);
                 t.transform.localRotation = Quaternion.Euler(0f, i * 53f, 0f);
-                Solid(aRocks[i, 0], aRocks[i, 1], sz * 0.6f);
+                ctx.Solid(aRocks[i, 0], aRocks[i, 1], sz * 0.6f);
             }
             float[,] aPines = new float[,] { {8f,-28f},{-9f,-35f},{11f,-43f},{-10f,-48f},{8f,-53f},{-8f,-26f} };
             for (int i = 0; i < aPines.GetLength(0); i++)
@@ -663,16 +748,14 @@ namespace AxePath
                 g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
                 MeshUtil.Tapered(g.transform, "Trunk", trunkMesh, 0x4a3a28, 0f, 1.6f, 0f);
                 MeshUtil.Tapered(g.transform, "Canopy", canopyMesh, 0x2e5233, 0f, 5.4f, 0f);
-                Solid(x, z, 0.5f);
+                ctx.Solid(x, z, 0.5f);
             }
-            Dirt(8f, -28f, 3f);
-            Dirt(-9f, -35f, 3f);
-            Dirt(0f, -48f, 4f);
-            Dirt(5f, -52f, 3f);
-            Dirt(-6f, -20f, 3f);
-            Dirt(10f, -44f, 3f);
-
-            return world;
+            ctx.Dirt(8f, -28f, 3f);
+            ctx.Dirt(-9f, -35f, 3f);
+            ctx.Dirt(0f, -48f, 4f);
+            ctx.Dirt(5f, -52f, 3f);
+            ctx.Dirt(-6f, -20f, 3f);
+            ctx.Dirt(10f, -44f, 3f);
         }
     }
 

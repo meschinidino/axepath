@@ -204,6 +204,48 @@ public class SaveRoundTripTests
         Assert.AreEqual(false, parsed.ok);
         StringAssert.Contains("trust", parsed.error);
     }
+
+    [Test]
+    public void CapsUntrustedEchoesInErrorsAndLabels()
+    {
+        var w = Logic.CreateWorld();
+        string big = new string('x', 10000);
+        string text = Logic.SerializeWorld(w, "").Replace("\"version\":" + Meta.SaveVersion, "\"version\":\"" + big + "\"");
+        var parsed = Logic.ParseSave(text);
+        Assert.AreEqual(false, parsed.ok);
+        Assert.LessOrEqual(parsed.error.Length, 200);
+        string text2 = Logic.SerializeWorld(w, big);
+        var parsed2 = Logic.ParseSave(text2);
+        Assert.AreEqual(true, parsed2.ok);
+        Assert.LessOrEqual(parsed2.label.Length, 120);
+    }
+
+    [Test]
+    public void SurvivesHostileVersionAndLabelShapes()
+    {
+        var w = Logic.CreateWorld();
+        string text = Logic.SerializeWorld(w, "").Replace("\"version\":" + Meta.SaveVersion, "\"version\":5000000000");
+        var parsed = Logic.ParseSave(text);
+        Assert.AreEqual(false, parsed.ok);
+        StringAssert.Contains("version", parsed.error);
+        string text2 = Logic.SerializeWorld(w, "").Replace("\"label\":\"", "\"label\":{\"x\":1},\"zz\":\"");
+        var parsed2 = Logic.ParseSave(text2);
+        Assert.AreEqual(true, parsed2.ok);
+        Assert.AreEqual("", parsed2.label);
+        string astral = new string('y', 63) + char.ConvertFromUtf32(0x1F600) + new string('y', 100);
+        string text3 = Logic.SerializeWorld(w, "").Replace("\"version\":" + Meta.SaveVersion, "\"version\":\"" + astral + "\"");
+        var parsed3 = Logic.ParseSave(text3);
+        Assert.AreEqual(false, parsed3.ok);
+        for (int i = 0; i < parsed3.error.Length; i++)
+        {
+            if (char.IsHighSurrogate(parsed3.error[i]))
+                Assert.IsTrue(i + 1 < parsed3.error.Length && char.IsLowSurrogate(parsed3.error[i + 1]));
+        }
+        string text4 = Logic.SerializeWorld(w, "").Replace("\"label\":\"", "\"label\":new Foo(),\"zz\":\"");
+        var parsed4 = Logic.ParseSave(text4);
+        Assert.AreEqual(true, parsed4.ok);
+        Assert.AreEqual("", parsed4.label);
+    }
 }
 
 [TestFixture]

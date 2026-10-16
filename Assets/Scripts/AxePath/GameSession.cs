@@ -102,7 +102,7 @@ namespace AxePath
                 var parsed = Logic.ParseSave(saver.Load(s));
                 if (!parsed.ok)
                 {
-                    Hud.ShowModal("Broken save", parsed.error + " Starting fresh will overwrite it.", () => NewGame(s), null);
+                    Hud.ShowModal(Lines.ModalBrokenSave, parsed.error + Lines.ModalBrokenSuffix, () => NewGame(s), null);
                     return;
                 }
                 Continue(s, parsed.world);
@@ -116,7 +116,7 @@ namespace AxePath
         public void NewGame(int s)
         {
             W = Logic.CreateWorld();
-            saver.Save(s, Logic.SerializeWorld(W, "Gen 1, nobody"));
+            saver.Save(s, Logic.SerializeWorld(W, Lines.LabelGen1Nobody));
             CommonStart(s);
         }
 
@@ -184,7 +184,7 @@ namespace AxePath
             Player.SetAxeEdge(Logic.EdgeStep(W), W.axe.have);
             Hud.SetHp(W.player.hp);
             Hud.SetHands(W.axe.have, W.book.have, W.ironwood.have);
-            Hud.SetBanner(saver.sessionOnly ? "Progress will NOT be saved — storage refused. This run counts for fun only." : "");
+            Hud.SetBanner(saver.sessionOnly ? Lines.BannerNoSave : "");
             RefsSync();
         }
 
@@ -252,38 +252,38 @@ namespace AxePath
             var refs = world.refs;
             if (!W.axe.have && W.axe.yard)
             {
-                cands.Add(new InteractTarget { id = "axe", x = refs.axeStandPos.x, z = refs.axeStandPos.z, label = "Take the lumber axe (E)" });
+                cands.Add(new InteractTarget { id = "axe", x = refs.axeStandPos.x, z = refs.axeStandPos.z, label = Lines.PromptAxe });
             }
             if (!W.book.have)
             {
-                cands.Add(new InteractTarget { id = "bookstand", x = refs.bookStandPos.x, z = refs.bookStandPos.z, label = "Take the route sketch (E)" });
+                cands.Add(new InteractTarget { id = "bookstand", x = refs.bookStandPos.x, z = refs.bookStandPos.z, label = Lines.PromptBookTake });
             }
             else
             {
-                cands.Add(new InteractTarget { id = "readbook", x = refs.bookStandPos.x, z = refs.bookStandPos.z, label = "Read the sketch (E)" });
+                cands.Add(new InteractTarget { id = "readbook", x = refs.bookStandPos.x, z = refs.bookStandPos.z, label = Lines.PromptBookRead });
             }
-            cands.Add(new InteractTarget { id = "librarian", x = spots.librarian.x, z = spots.librarian.z, label = "Talk to the librarian (E)" });
+            cands.Add(new InteractTarget { id = "librarian", x = spots.librarian.x, z = spots.librarian.z, label = Lines.PromptLibrarian });
             if (W.dwarfAlive)
             {
-                cands.Add(new InteractTarget { id = "dwarf", x = spots.dwarf.x, z = spots.dwarf.z, label = "Talk to the dwarf (E)" });
+                cands.Add(new InteractTarget { id = "dwarf", x = spots.dwarf.x, z = spots.dwarf.z, label = Lines.PromptDwarf });
             }
             else
             {
-                cands.Add(new InteractTarget { id = "dwarfnote", x = spots.dwarf.x, z = spots.dwarf.z, label = "Look at the cold forge (E)" });
+                cands.Add(new InteractTarget { id = "dwarfnote", x = spots.dwarf.x, z = spots.dwarf.z, label = Lines.PromptDwarfNote });
             }
             if (!W.ironwood.turnedIn && W.ironwood.have < 1)
             {
-                cands.Add(new InteractTarget { id = "ironwood", x = refs.ironLogPos.x, z = refs.ironLogPos.z, label = "Take ironwood (E)", reach = 5f });
+                cands.Add(new InteractTarget { id = "ironwood", x = refs.ironLogPos.x, z = refs.ironLogPos.z, label = Lines.PromptIronwood, reach = 5f });
             }
             if (W.axe.droppedAt != null)
             {
-                cands.Add(new InteractTarget { id = "cairn", x = W.axe.droppedAt.x, z = W.axe.droppedAt.z, label = "Reclaim your axe (E)" });
+                cands.Add(new InteractTarget { id = "cairn", x = W.axe.droppedAt.x, z = W.axe.droppedAt.z, label = Lines.PromptCairn });
             }
             for (int i = 0; i < refs.blazePos.Count; i++)
             {
-                cands.Add(new InteractTarget { id = "blaze", bi = i, x = refs.blazePos[i].x, z = refs.blazePos[i].z, label = "Look at the mark (E)" });
+                cands.Add(new InteractTarget { id = "blaze", bi = i, x = refs.blazePos[i].x, z = refs.blazePos[i].z, label = Lines.PromptBlaze });
             }
-            cands.Add(new InteractTarget { id = "guide", x = refs.guidePos.x, z = refs.guidePos.z, label = "Look at the weathered mark (E)" });
+            cands.Add(new InteractTarget { id = "guide", x = refs.guidePos.x, z = refs.guidePos.z, label = Lines.PromptGuide });
             InteractTarget best = null;
             float bestD = float.MaxValue;
             foreach (var c in cands)
@@ -304,10 +304,10 @@ namespace AxePath
                 if (Logic.TakeYardAxe(W))
                 {
                     RefreshHud();
-                    Autosave("Gen " + W.generation + ", axe taken");
+                    Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelAxeTaken);
                     Say("You", new List<string> {
-                        "Heavier than it looks. The yard boss will miss it; the forest will test it.",
-                        "Yours now, and already in your hand. Click to swing — the trees will teach your arms.",
+                        Lines.YouAxeHeavy,
+                        Lines.YouAxeYours,
                     }, null);
                 }
                 return;
@@ -317,7 +317,7 @@ namespace AxePath
                 Logic.TakeBook(W);
                 RefreshHud();
                 bookOpen = true;
-                Hud.ShowBook("Route sketch", Lines.BookSketch);
+                Hud.ShowBook(Lines.BookTitle, Lines.BookSketch);
                 return;
             }
             if (t.id == "librarian")
@@ -334,7 +334,7 @@ namespace AxePath
                 if (res.evt == "thaw")
                 {
                     Say("Dwarf", new List<string> { Lines.DwarfCold, Lines.DwarfArrival }, null);
-                    Autosave("Gen " + W.generation + ", civil");
+                    Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelCivil);
                 }
                 else if (res.evt == "cold")
                 {
@@ -353,27 +353,27 @@ namespace AxePath
                         {
                             audio.PlaySharpen();
                             RefreshHud();
-                            Autosave("Gen " + W.generation + ", sharpened");
+                            Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelSharpened);
                             SayOne("Dwarf", Lines.DwarfSharpening);
                         }
                     }
                     else SayOne("Dwarf", Lines.DwarfCivil);
                 }
                 else if (res.evt == "idle-sharp") SayOne("Dwarf", Lines.DwarfSharpening);
-                else if (res.evt == "refused") SayOne("Dwarf", "The dwarf turns his shoulder. The forge is closed to you.");
+                else if (res.evt == "refused") SayOne("Dwarf", Lines.DwarfRefused);
                 RefreshHud();
                 return;
             }
             if (t.id == "dwarfnote")
             {
-                Hud.ShowModal("Cold forge", Lines.DwarfDeadNote, null, null);
+                Hud.ShowModal(Lines.ModalColdForge, Lines.DwarfDeadNote, null, null);
                 return;
             }
             if (t.id == "ironwood")
             {
                 W.ironwood.have += 1;
                 RefreshHud();
-                SayOne("You", "Pale as bone, and it hums faintly. One log is all he asked for.");
+                SayOne("You", Lines.YouIronwood);
                 return;
             }
             if (t.id == "cairn")
@@ -381,7 +381,7 @@ namespace AxePath
                 if (Logic.ReclaimAxe(W))
                 {
                     RefreshHud();
-                    SayOne("You", "Still here. Still yours.");
+                    SayOne("You", Lines.YouReclaim);
                 }
                 return;
             }
@@ -431,7 +431,7 @@ namespace AxePath
         {
             if (!W.axe.have)
             {
-                Hud.SetPrompt("No axe. The lumber yard has one.", 1.6f);
+                Hud.SetPrompt(Lines.PromptNoAxe, 1.6f);
                 return;
             }
             if (!Player.TrySwing(W.skill.swingMs * 0.8f)) return;
@@ -458,13 +458,13 @@ namespace AxePath
                     Wolf.alive = false;
                     Logic.UseAxe(W, "hit");
                     RefreshHud();
-                    Hud.SetPrompt("The wolf is still. The forest feels larger.", 2.2f);
+                    Hud.SetPrompt(Lines.PromptWolfStill, 2.2f);
                 }
                 else
                 {
                     Logic.UseAxe(W, "chop");
                     RefreshHud();
-                    Hud.SetPrompt("The wolf snarls, wounded.", 1.6f);
+                    Hud.SetPrompt(Lines.PromptWolfSnarls, 1.6f);
                 }
                 return;
             }
@@ -473,7 +473,7 @@ namespace AxePath
             {
                 if (W.trust == Trust.Sharp)
                 {
-                    SayOne("Dwarf", "The dwarf catches your wrist. “Not like this. Not ever.”");
+                    SayOne("Dwarf", Lines.DwarfWrist);
                     return;
                 }
                 if (W.trust == Trust.Ended)
@@ -482,8 +482,8 @@ namespace AxePath
                     {
                         audio.PlayHit();
                         RefreshHud();
-                        Autosave("Gen " + W.generation + ", dwarf dead");
-                        Hud.ShowModal("The forge goes cold", Lines.DwarfDeadNote, null, null);
+                        Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelDwarfDead);
+                        Hud.ShowModal(Lines.ModalForgeCold, Lines.DwarfDeadNote, null, null);
                     }
                     return;
                 }
@@ -491,8 +491,8 @@ namespace AxePath
                 if (res == "warned") SayOne("Dwarf", Lines.DwarfWarnDraw);
                 else if (res == Trust.Ended)
                 {
-                    SayOne("Dwarf", "“Done.” The dwarf turns his shoulder. The forge is closed to you.");
-                    Autosave("Gen " + W.generation + ", refused");
+                    SayOne("Dwarf", Lines.DwarfRefusedDone);
+                    Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelRefused);
                 }
                 RefreshHud();
                 return;
@@ -504,7 +504,7 @@ namespace AxePath
                 audio.PlayThunk(W.axe.dullness / 100f);
                 Hud.FlashCross();
                 RefreshHud();
-                Hud.SetPrompt("Chips fly.", 1.6f);
+                Hud.SetPrompt(Lines.PromptChips, 1.6f);
                 return;
             }
             audio.PlayThunk(0.05f);
@@ -520,7 +520,7 @@ namespace AxePath
             Hud.HideDialogue();
             dialogue = null;
             Hud.ShowDeath(
-                "Three wounds. The forest keeps you. Your axe lies where you fell, under a cairn of stones. Death " + (W.deaths + 1) + ".",
+                Lines.DeathCopyPrefix + (W.deaths + 1) + ".",
                 W.dwarfAlive ? "" : Lines.DwarfDeadNote);
             pendingDeathPos = new DropPos { x = p.x, z = p.z };
         }
@@ -539,7 +539,7 @@ namespace AxePath
 
         public void ToTitle()
         {
-            if (W != null) Autosave("Gen " + W.generation);
+            if (W != null) Autosave(Lines.LabelGenPrefix + W.generation);
             CurrentState = State.Title;
             dialogue = null;
             bookOpen = false;
@@ -567,7 +567,7 @@ namespace AxePath
             howlT = 12f;
             visitedYard = false;
             visitedMouth = false;
-            Autosave("Gen " + W.generation + ", nobody");
+            Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelNobody);
             RefreshHud();
             Hud.ShowHud(true);
             audio.StartWind();
@@ -580,12 +580,12 @@ namespace AxePath
             var raw = saver.Load(slot);
             if (raw == null)
             {
-                Hud.SetTitleMessage("Slot is empty — nothing to export.");
+                Hud.SetTitleMessage(Lines.ExportEmpty);
                 return;
             }
             string path = Path.Combine(Application.persistentDataPath, "axe-path-slot-" + slot + "-export.json");
             File.WriteAllText(path, raw);
-            Hud.SetTitleMessage("Save exported to " + path);
+            Hud.SetTitleMessage(Lines.ExportDonePrefix + path);
         }
 
         void Update()
@@ -637,12 +637,12 @@ namespace AxePath
             if (!visitedYard && Gdist(p.x, p.z, spots.yard.x, spots.yard.z) < 6f)
             {
                 visitedYard = true;
-                Autosave("Gen " + W.generation + ", yard");
+                Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelYard);
             }
             if (!visitedMouth && Gdist(p.x, p.z, spots.caveMouth.x, spots.caveMouth.z) < 6f)
             {
                 visitedMouth = true;
-                Autosave("Gen " + W.generation + ", cave");
+                Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelCave);
             }
             bool inside = p.x > -30f && p.x < 30f && p.z > -70f && p.z < 45f;
             if (!inside)
@@ -657,9 +657,9 @@ namespace AxePath
                         W.axe.have = false;
                         W.axe.droppedAt = new DropPos { x = 1.5f, z = 42f };
                     }
-                    Autosave("Gen " + W.generation + ", stumbled out");
+                    Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelStumbled);
                     RefreshHud();
-                    Hud.SetPrompt("The dark thickens... you stumble out at the village edge, empty-handed.", 3.0f);
+                    Hud.SetPrompt(Lines.PromptStumbled, 3.0f);
                 }
             }
             else lostT = 0f;
@@ -671,7 +671,7 @@ namespace AxePath
                 if (ev == "growl")
                 {
                     audio.PlayGrowl();
-                    Hud.SetPrompt("A growl in the dark. Walk, do not run.", 2.5f);
+                    Hud.SetPrompt(Lines.PromptGrowl, 2.5f);
                 }
                 else if (ev == "chase") audio.PlayChase();
                 else if (ev == "attack" && wolfCooldown <= 0f)
@@ -704,7 +704,7 @@ namespace AxePath
                     if (dDen > 15f && dDen < 60f)
                     {
                         audio.PlayHowl(1f - (dDen - 15f) / 45f);
-                        Hud.SetPrompt("A howl rolls through the trees.", 2.5f);
+                        Hud.SetPrompt(Lines.PromptHowl, 2.5f);
                     }
                 }
             }

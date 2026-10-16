@@ -71,6 +71,93 @@ namespace AxePath
             "The mark faces north, toward the smoke. Whoever left it knew the way.",
         };
         public const string GuideEast = "The mark faces east, not north. Three short strokes beneath it, cut with purpose. Whoever left it wanted the next climber to turn aside here.";
+
+        // HUD chrome (Hud.cs). Byte-identical centralization; no rewording.
+        public const string HudHealth = "health";
+        public const string HudNoAxe = "no axe";
+        public const string HudEdge = "edge";
+        public const string HudHandAxe = "axe";
+        public const string HudHandBook = "sketch";
+        public const string HudHandLog = "log";
+        public const string TitleHead = "AXE PATH";
+        public const string TitleSub = "You are no one. The forest does not care. Walk anyway.";
+        public const string TitleExport = "Export current slot";
+        public const string TitleControls = "WASD / arrows — move · Mouse — look · Shift — run · E — talk, take, read · Click — swing, advance";
+        public const string BookClose = "Close (E)";
+        public const string ModalOk = "OK";
+        public const string ModalCancel = "Cancel";
+        public const string DeathHead = "THE FOREST KEEPS YOU";
+        public const string DeathWake = "Wake as the next nobody";
+        public const string LockHint = "Click to look around";
+        public const string SlotPrefix = "Slot ";
+        public const string SlotEmpty = " — empty, begin as a nobody";
+        public const string SlotMid = " — ";
+        public const string SlotDateSep = " · ";
+        public const string SlotBroken = " — broken save, pick to overwrite";
+
+        // Session copy (GameSession.cs). Near-duplicates stay separate consts.
+        public const string PromptAxe = "Take the lumber axe (E)";
+        public const string PromptBookTake = "Take the route sketch (E)";
+        public const string PromptBookRead = "Read the sketch (E)";
+        public const string PromptLibrarian = "Talk to the librarian (E)";
+        public const string PromptDwarf = "Talk to the dwarf (E)";
+        public const string PromptDwarfNote = "Look at the cold forge (E)";
+        public const string PromptIronwood = "Take ironwood (E)";
+        public const string PromptCairn = "Reclaim your axe (E)";
+        public const string PromptBlaze = "Look at the mark (E)";
+        public const string PromptGuide = "Look at the weathered mark (E)";
+        public const string YouAxeHeavy = "Heavier than it looks. The yard boss will miss it; the forest will test it.";
+        public const string YouAxeYours = "Yours now, and already in your hand. Click to swing — the trees will teach your arms.";
+        public const string BookTitle = "Route sketch";
+        public const string DwarfRefused = "The dwarf turns his shoulder. The forge is closed to you.";
+        public const string DwarfRefusedDone = "“Done.” The dwarf turns his shoulder. The forge is closed to you.";
+        public const string ModalColdForge = "Cold forge";
+        public const string ModalForgeCold = "The forge goes cold";
+        public const string YouIronwood = "Pale as bone, and it hums faintly. One log is all he asked for.";
+        public const string YouReclaim = "Still here. Still yours.";
+        public const string PromptNoAxe = "No axe. The lumber yard has one.";
+        public const string PromptWolfStill = "The wolf is still. The forest feels larger.";
+        public const string PromptWolfSnarls = "The wolf snarls, wounded.";
+        public const string PromptChips = "Chips fly.";
+        public const string DwarfWrist = "The dwarf catches your wrist. “Not like this. Not ever.”";
+        public const string DeathCopyPrefix = "Three wounds. The forest keeps you. Your axe lies where you fell, under a cairn of stones. Death ";
+        public const string BannerNoSave = "Progress will NOT be saved — storage refused. This run counts for fun only.";
+        public const string ModalBrokenSave = "Broken save";
+        public const string ModalBrokenSuffix = " Starting fresh will overwrite it.";
+        public const string ExportEmpty = "Slot is empty — nothing to export.";
+        public const string ExportDonePrefix = "Save exported to ";
+        public const string PromptStumbled = "The dark thickens... you stumble out at the village edge, empty-handed.";
+        public const string PromptGrowl = "A growl in the dark. Walk, do not run.";
+        public const string PromptHowl = "A howl rolls through the trees.";
+
+        // Save slot labels. LabelGenPrefix is the one shared "Gen " const.
+        public const string LabelGen1Nobody = "Gen 1, nobody";
+        public const string LabelGenPrefix = "Gen ";
+        public const string LabelAxeTaken = ", axe taken";
+        public const string LabelCivil = ", civil";
+        public const string LabelSharpened = ", sharpened";
+        public const string LabelDwarfDead = ", dwarf dead";
+        public const string LabelRefused = ", refused";
+        public const string LabelNobody = ", nobody";
+        public const string LabelYard = ", yard";
+        public const string LabelCave = ", cave";
+        public const string LabelStumbled = ", stumbled out";
+
+        // Save parse errors. The a/broken near-dup cluster stays separate.
+        public const string SaveErrUnreadable = "That file is not a readable save.";
+        public const string SaveErrForeign = "That file belongs to another game.";
+        public const string SaveErrVersionPrefix = "That save was written by version ";
+        public const string SaveErrVersionMid = ", this game reads version ";
+        public const string SaveErrNoWorld = "That save is missing its world.";
+        public const string SaveErrGeneration = "That save has a broken generation.";
+        public const string SaveErrDeaths = "That save has a broken deaths.";
+        public const string SaveErrDwarf = "That save has a broken dwarf.";
+        public const string SaveErrTrust = "That save has broken trust.";
+        public const string SaveErrAxe = "That save has a broken axe.";
+        public const string SaveErrSkill = "That save has broken skill.";
+        public const string SaveErrBody = "That save has a broken body.";
+        public const string SaveErrIronwood = "That save has broken ironwood.";
+        public const string SaveErrBook = "That save has a broken book.";
     }
 
     public class TuningSet
@@ -438,7 +525,7 @@ namespace AxePath
                 app = "axe-path",
                 version = Meta.SaveVersion,
                 savedAt = DateTime.UtcNow.ToString("o"),
-                label = string.IsNullOrEmpty(label) ? "Gen " + w.generation : label,
+                label = string.IsNullOrEmpty(label) ? Lines.LabelGenPrefix + w.generation : label,
                 world = w,
             };
             return JsonConvert.SerializeObject(payload);
@@ -454,43 +541,64 @@ namespace AxePath
             return new SaveResult { ok = false, error = error, world = null, label = "", savedAt = "" };
         }
 
+        // Untrusted save strings never reach the UI unbounded. Legit values
+        // (small version tokens, short labels) pass through byte-identical.
+        private static string Cap(string s, int max)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length <= max) return s ?? "";
+            if (max > 0 && char.IsHighSurrogate(s[max - 1]) && char.IsLowSurrogate(s[max])) max--;
+            return s.Substring(0, max);
+        }
+
+        // Reads a possibly-hostile string field: only plain values convert.
+        // Anything else (objects, arrays, constructor syntax) becomes ""
+        // instead of throwing, and long values are capped for UI sinks.
+        private static string SafeField(JObject data, string key, int max)
+        {
+            var t = data[key];
+            if (!(t is JValue)) return "";
+            return Cap(t.Value<string>() ?? "", max);
+        }
+
         public static SaveResult ParseSave(string text)
         {
             JObject data;
             try
             {
                 var tok = JToken.Parse(text);
-                if (tok == null || tok.Type != JTokenType.Object) return Fail("That file is not a readable save.");
+                if (tok == null || tok.Type != JTokenType.Object) return Fail(Lines.SaveErrUnreadable);
                 data = (JObject)tok;
             }
             catch
             {
-                return Fail("That file is not a readable save.");
+                return Fail(Lines.SaveErrUnreadable);
             }
-            if (data.Value<string>("app") != "axe-path") return Fail("That file belongs to another game.");
+            if (data.Value<string>("app") != "axe-path") return Fail(Lines.SaveErrForeign);
             var ver = data["version"];
-            if (ver == null || ver.Type != JTokenType.Integer || ver.Value<int>() != Meta.SaveVersion)
+            int veri = 0;
+            bool verOk = ver != null && ver.Type == JTokenType.Integer && int.TryParse(ver.ToString(), out veri) && veri == Meta.SaveVersion;
+            if (!verOk)
             {
-                return Fail("That save was written by version " + (ver == null ? "" : ver.ToString()) + ", this game reads version " + Meta.SaveVersion + ".");
+                return Fail(Lines.SaveErrVersionPrefix + Cap(ver == null ? "" : ver.ToString(), 64) + Lines.SaveErrVersionMid + Meta.SaveVersion + ".");
             }
             var wtok = data["world"];
-            if (wtok == null || wtok.Type != JTokenType.Object) return Fail("That save is missing its world.");
+            if (wtok == null || wtok.Type != JTokenType.Object) return Fail(Lines.SaveErrNoWorld);
             var w = (JObject)wtok;
-            if (!IsNum(w["generation"])) return Fail("That save has a broken generation.");
-            if (!IsNum(w["deaths"])) return Fail("That save has a broken deaths.");
-            if (w["dwarfAlive"] == null || w["dwarfAlive"].Type != JTokenType.Boolean) return Fail("That save has a broken dwarf.");
+            if (!IsNum(w["generation"])) return Fail(Lines.SaveErrGeneration);
+            if (!IsNum(w["deaths"])) return Fail(Lines.SaveErrDeaths);
+            if (w["dwarfAlive"] == null || w["dwarfAlive"].Type != JTokenType.Boolean) return Fail(Lines.SaveErrDwarf);
             var trust = w.Value<string>("trust");
-            if (trust != Trust.Cold && trust != Trust.Civil && trust != Trust.Sharp && trust != Trust.Ended) return Fail("That save has broken trust.");
+            if (trust != Trust.Cold && trust != Trust.Civil && trust != Trust.Sharp && trust != Trust.Ended) return Fail(Lines.SaveErrTrust);
             var axe = w["axe"] as JObject;
-            if (axe == null || axe["have"] == null || axe["have"].Type != JTokenType.Boolean || !IsNum(axe["dullness"])) return Fail("That save has a broken axe.");
+            if (axe == null || axe["have"] == null || axe["have"].Type != JTokenType.Boolean || !IsNum(axe["dullness"])) return Fail(Lines.SaveErrAxe);
             var skill = w["skill"] as JObject;
-            if (skill == null || !IsNum(skill["swingMs"]) || !IsNum(skill["noiseMul"])) return Fail("That save has broken skill.");
+            if (skill == null || !IsNum(skill["swingMs"]) || !IsNum(skill["noiseMul"])) return Fail(Lines.SaveErrSkill);
             var player = w["player"] as JObject;
-            if (player == null || player["alive"] == null || player["alive"].Type != JTokenType.Boolean || !IsNum(player["hp"])) return Fail("That save has a broken body.");
+            if (player == null || player["alive"] == null || player["alive"].Type != JTokenType.Boolean || !IsNum(player["hp"])) return Fail(Lines.SaveErrBody);
             var iron = w["ironwood"] as JObject;
-            if (iron == null || !IsNum(iron["have"])) return Fail("That save has broken ironwood.");
+            if (iron == null || !IsNum(iron["have"])) return Fail(Lines.SaveErrIronwood);
             var book = w["book"] as JObject;
-            if (book == null || book["have"] == null || book["have"].Type != JTokenType.Boolean) return Fail("That save has a broken book.");
+            if (book == null || book["have"] == null || book["have"].Type != JTokenType.Boolean) return Fail(Lines.SaveErrBook);
             WorldState world;
             try
             {
@@ -498,9 +606,9 @@ namespace AxePath
             }
             catch
             {
-                return Fail("That file is not a readable save.");
+                return Fail(Lines.SaveErrUnreadable);
             }
-            return new SaveResult { ok = true, error = "", world = world, label = data.Value<string>("label") ?? "", savedAt = data.Value<string>("savedAt") ?? "" };
+            return new SaveResult { ok = true, error = "", world = world, label = SafeField(data, "label", 120), savedAt = data.Value<string>("savedAt") ?? "" };
         }
 
         public static WolfState CreateWolf(float x, float z)

@@ -163,7 +163,7 @@ namespace AxePath
             hpCapRt.pivot = new Vector2(0f, 0.5f);
             hpCapRt.sizeDelta = new Vector2(80f, 24f);
             hpCapRt.anchoredPosition = new Vector2(80f, 0f);
-            hpCap.text = "health";
+            hpCap.text = Lines.HudHealth;
             hpCap.color = new Color(1f, 1f, 1f, 0.7f);
 
             var edgeRow = new GameObject("Edge");
@@ -191,7 +191,7 @@ namespace AxePath
             edgeCapRt.pivot = new Vector2(0f, 0.5f);
             edgeCapRt.sizeDelta = new Vector2(80f, 24f);
             edgeCapRt.anchoredPosition = new Vector2(80f, 0f);
-            edgeCap.text = "no axe";
+            edgeCap.text = Lines.HudNoAxe;
             edgeCap.color = new Color(1f, 1f, 1f, 0.7f);
 
             var hands = new GameObject("Hands");
@@ -201,14 +201,14 @@ namespace AxePath
             handAxe = MkText(hands.transform, "Axe", 16, TextAnchor.MiddleRight);
             Place(handAxe.GetComponent<RectTransform>(), 1f, 0.5f, 1f, 0.5f, 90f, 26f);
             handAxe.GetComponent<RectTransform>().anchoredPosition = new Vector2(-200f, 0f);
-            handAxe.text = "axe";
+            handAxe.text = Lines.HudHandAxe;
             handBook = MkText(hands.transform, "Book", 16, TextAnchor.MiddleRight);
             Place(handBook.GetComponent<RectTransform>(), 1f, 0.5f, 1f, 0.5f, 90f, 26f);
             handBook.GetComponent<RectTransform>().anchoredPosition = new Vector2(-100f, 0f);
-            handBook.text = "sketch";
+            handBook.text = Lines.HudHandBook;
             handLog = MkText(hands.transform, "Log", 16, TextAnchor.MiddleRight);
             Place(handLog.GetComponent<RectTransform>(), 1f, 0.5f, 1f, 0.5f, 90f, 26f);
-            handLog.text = "log";
+            handLog.text = Lines.HudHandLog;
 
             var promptPanel = MkPanel(hudRoot.transform, "Prompt", 0.72f);
             Place(promptPanel.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 640f, 40f);
@@ -281,12 +281,12 @@ namespace AxePath
             var head = MkText(titleRoot.transform, "Head", 54, TextAnchor.MiddleCenter);
             Place(head.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 800f, 80f);
             head.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -90f);
-            head.text = "AXE PATH";
+            head.text = Lines.TitleHead;
             head.color = Orange;
             var sub = MkText(titleRoot.transform, "Sub", 20, TextAnchor.MiddleCenter);
             Place(sub.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 800f, 30f);
             sub.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -150f);
-            sub.text = "You are no one. The forest does not care. Walk anyway.";
+            sub.text = Lines.TitleSub;
             sub.color = new Color(1f, 1f, 1f, 0.75f);
             titleMsg = MkText(titleRoot.transform, "Msg", 18, TextAnchor.MiddleCenter);
             Place(titleMsg.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 800f, 30f);
@@ -296,14 +296,14 @@ namespace AxePath
             Place(wrap.AddComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 560f, 300f);
             wrap.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -230f);
             slotWrap = wrap.transform;
-            var exp = MkButton(titleRoot.transform, "Export", "Export current slot", 18);
+            var exp = MkButton(titleRoot.transform, "Export", Lines.TitleExport, 18);
             Place(exp.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 260f, 44f);
             exp.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 60f);
             exp.onClick.AddListener(() => { if (OnExport != null) OnExport(); });
             var card = MkText(titleRoot.transform, "Controls", 16, TextAnchor.MiddleCenter);
             Place(card.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 760f, 60f);
             card.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 130f);
-            card.text = "WASD / arrows — move · Mouse — look · Shift — run · E — talk, take, read · Click — swing, advance";
+            card.text = Lines.TitleControls;
             card.color = new Color(1f, 1f, 1f, 0.75f);
             titleRoot.SetActive(false);
         }
@@ -319,7 +319,7 @@ namespace AxePath
             bookBody = MkText(bookRoot.transform, "Body", 20, TextAnchor.UpperLeft);
             Place(bookBody.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 560f, 300f);
             bookBody.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -66f);
-            var close = MkButton(bookRoot.transform, "Close", "Close (E)", 18);
+            var close = MkButton(bookRoot.transform, "Close", Lines.BookClose, 18);
             Place(close.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 160f, 40f);
             close.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 16f);
             close.onClick.AddListener(() => { if (OnBookClose != null) OnBookClose(); });
@@ -337,7 +337,7 @@ namespace AxePath
             modalBody = MkText(modalRoot.transform, "Body", 19, TextAnchor.UpperCenter);
             Place(modalBody.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 500f, 150f);
             modalBody.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -60f);
-            modalOk = MkButton(modalRoot.transform, "Ok", "OK", 18);
+            modalOk = MkButton(modalRoot.transform, "Ok", Lines.ModalOk, 18);
             Place(modalOk.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 140f, 40f);
             modalOk.GetComponent<RectTransform>().anchoredPosition = new Vector2(-80f, 18f);
             modalOk.onClick.AddListener(() => {
@@ -347,7 +347,7 @@ namespace AxePath
                 modalCancelFn = null;
                 if (f != null) f();
             });
-            modalCancel = MkButton(modalRoot.transform, "Cancel", "Cancel", 18);
+            modalCancel = MkButton(modalRoot.transform, "Cancel", Lines.ModalCancel, 18);
             Place(modalCancel.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 140f, 40f);
             modalCancel.GetComponent<RectTransform>().anchoredPosition = new Vector2(80f, 18f);
             modalCancel.onClick.AddListener(() => {
@@ -371,7 +371,7 @@ namespace AxePath
             var head = MkText(deathRoot.transform, "Head", 44, TextAnchor.MiddleCenter);
             Place(head.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 800f, 60f);
             head.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -140f);
-            head.text = "THE FOREST KEEPS YOU";
+            head.text = Lines.DeathHead;
             head.color = new Color(0.75f, 0.25f, 0.2f);
             deathCopy = MkText(deathRoot.transform, "Copy", 21, TextAnchor.MiddleCenter);
             Place(deathCopy.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 760f, 90f);
@@ -380,7 +380,7 @@ namespace AxePath
             Place(deathDwarfLine.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 760f, 60f);
             deathDwarfLine.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -300f);
             deathDwarfLine.color = Orange;
-            var wake = MkButton(deathRoot.transform, "Wake", "Wake as the next nobody", 20);
+            var wake = MkButton(deathRoot.transform, "Wake", Lines.DeathWake, 20);
             Place(wake.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 300f, 48f);
             wake.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 120f);
             wake.onClick.AddListener(() => { if (OnWake != null) OnWake(); });
@@ -397,7 +397,7 @@ namespace AxePath
             rt.offsetMax = Vector2.zero;
             var t = MkText(lockRoot.transform, "Text", 26, TextAnchor.MiddleCenter);
             Place(t.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 700f, 60f);
-            t.text = "Click to look around";
+            t.text = Lines.LockHint;
             var btn = lockRoot.AddComponent<Button>();
             btn.onClick.AddListener(() => { if (OnFirstLock != null) OnFirstLock(); });
             lockRoot.SetActive(false);
@@ -461,13 +461,13 @@ namespace AxePath
                 int slot = s;
                 var info = describe(slot);
                 string label;
-                if (info.state == "empty") label = "Slot " + s + " — empty, begin as a nobody";
+                if (info.state == "empty") label = Lines.SlotPrefix + s + Lines.SlotEmpty;
                 else if (info.state == "filled")
                 {
                     string when = info.savedAt != null && info.savedAt.Length >= 10 ? info.savedAt.Substring(0, 10) : "";
-                    label = "Slot " + s + " — " + info.label + " · " + when;
+                    label = Lines.SlotPrefix + s + Lines.SlotMid + info.label + Lines.SlotDateSep + when;
                 }
-                else label = "Slot " + s + " — broken save, pick to overwrite";
+                else label = Lines.SlotPrefix + s + Lines.SlotBroken;
                 var b = MkButton(slotWrap, "Slot", label, 18);
                 Place(b.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 540f, 52f);
                 b.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -(s - 1) * 62f);
@@ -484,7 +484,7 @@ namespace AxePath
             {
                 edgePips[i].color = (have && i <= 2 - step) ? new Color(0.85f, 0.8f, 0.6f) : new Color(0.2f, 0.2f, 0.2f);
             }
-            edgeCap.text = have ? "edge" : "no axe";
+            edgeCap.text = have ? Lines.HudEdge : Lines.HudNoAxe;
         }
 
         public void SetHp(int hp)
