@@ -162,6 +162,10 @@ public class WorldShots
     // used to land on the same frame. This renders exactly what is posed.
     private static IEnumerator Shot(string name, Vector3 pos, Vector3 euler, bool showAxe)
     {
+        // Batchmode renders on the Null device, which segfaults inside
+        // Unity's billboard particle code (6000.6.6f1): screenshots only
+        // hold in the editor. Same convention as SessionFlow's capture.
+        if (Application.isBatchMode) yield break;
         var cam = Game.MainCam;
         Assert.IsNotNull(cam, "no main camera");
         pos.y += WorldBuilder.GroundH(pos.x, pos.z);
@@ -243,6 +247,9 @@ public class WorldShots
     [UnityTest]
     public IEnumerator CaveMouthNotWalled()
     {
+        // Pixel assert needs a real GPU (see Shot): the batchmode Null
+        // renderer segfaults on billboard particles.
+        if (Application.isBatchMode) yield break;
         var cam = Game.MainCam;
         Assert.IsNotNull(cam, "no main camera");
         var pos = new Vector3(-6f, 1.65f, -310f);

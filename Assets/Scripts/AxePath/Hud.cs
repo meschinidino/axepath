@@ -72,6 +72,9 @@ namespace AxePath
             t.fontSize = size;
             t.alignment = align;
             t.color = Color.white;
+            // Save imports can smuggle markup-looking text into labels and
+            // error echoes; no game string uses rich text, so it stays off.
+            t.supportRichText = false;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Overflow;
             return t;
@@ -465,7 +468,15 @@ namespace AxePath
                 else if (info.state == "filled")
                 {
                     string when = info.savedAt != null && info.savedAt.Length >= 10 ? info.savedAt.Substring(0, 10) : "";
-                    label = Lines.SlotPrefix + s + Lines.SlotMid + info.label + Lines.SlotDateSep + when;
+                    // Imports may carry 120-char labels; the button fits one line.
+                    string shown = info.label ?? "";
+                    int max = 40;
+                    if (shown.Length > max)
+                    {
+                        if (char.IsHighSurrogate(shown[max - 1]) && char.IsLowSurrogate(shown[max])) max--;
+                        shown = shown.Substring(0, max) + "...";
+                    }
+                    label = Lines.SlotPrefix + s + Lines.SlotMid + shown + Lines.SlotDateSep + when;
                 }
                 else label = Lines.SlotPrefix + s + Lines.SlotBroken;
                 var b = MkButton(slotWrap, "Slot", label, 18);

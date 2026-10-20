@@ -35,7 +35,7 @@ After building on macOS, strip quarantine once:
 
 ## Test it
 
-- **EditMode (23):** pure game rules in `GameLogic.cs` — trust ladder,
+- **EditMode (26):** pure game rules in `GameLogic.cs` — trust ladder,
   dulling, wolf brain, saves. No Unity dependencies.
 - **PlayMode (22):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
@@ -63,4 +63,3 @@ Run either suite from the Unity Test Runner, or ask the agent bridge
 
 - `DESIGN.md` — the game: premise, loop, world, rules, boundaries.
 - `ROADMAP.md` — where the slice stands and what comes next.
-- `../games/DESIGN.md` — the original v1 design seed (three.js era).

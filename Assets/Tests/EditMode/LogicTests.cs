@@ -246,6 +246,35 @@ public class SaveRoundTripTests
         Assert.AreEqual(true, parsed4.ok);
         Assert.AreEqual("", parsed4.label);
     }
+
+    [Test]
+    public void SurvivesHostileAppTrustAndSavedAtShapes()
+    {
+        var w = Logic.CreateWorld();
+        string text = Logic.SerializeWorld(w, "probe");
+        var legit = Logic.ParseSave(text);
+        Assert.AreEqual(true, legit.ok);
+        Assert.AreEqual("probe", legit.label);
+        string appObj = text.Replace("\"app\":\"axe-path\"", "\"app\":{\"x\":1}");
+        var parsed = Logic.ParseSave(appObj);
+        Assert.AreEqual(false, parsed.ok);
+        StringAssert.Contains("another game", parsed.error);
+        string trustArr = text.Replace("\"trust\":\"cold\"", "\"trust\":[\"cold\"]");
+        var parsed2 = Logic.ParseSave(trustArr);
+        Assert.AreEqual(false, parsed2.ok);
+        StringAssert.Contains("trust", parsed2.error);
+        string trustCtor = text.Replace("\"trust\":\"cold\"", "\"trust\":new Foo()");
+        var parsed3 = Logic.ParseSave(trustCtor);
+        Assert.AreEqual(false, parsed3.ok);
+        string dateObj = text.Replace("\"savedAt\":\"", "\"savedAt\":{\"x\":1},\"zz\":\"");
+        var parsed4 = Logic.ParseSave(dateObj);
+        Assert.AreEqual(true, parsed4.ok);
+        Assert.AreEqual("", parsed4.savedAt);
+        string dateBig = text.Replace("\"savedAt\":\"", "\"savedAt\":\"" + new string('s', 10000));
+        var parsed5 = Logic.ParseSave(dateBig);
+        Assert.AreEqual(true, parsed5.ok);
+        Assert.LessOrEqual(parsed5.savedAt.Length, 64);
+    }
 }
 
 [TestFixture]

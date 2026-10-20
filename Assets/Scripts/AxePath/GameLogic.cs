@@ -573,7 +573,7 @@ namespace AxePath
             {
                 return Fail(Lines.SaveErrUnreadable);
             }
-            if (data.Value<string>("app") != "axe-path") return Fail(Lines.SaveErrForeign);
+            if (SafeField(data, "app", 64) != "axe-path") return Fail(Lines.SaveErrForeign);
             var ver = data["version"];
             int veri = 0;
             bool verOk = ver != null && ver.Type == JTokenType.Integer && int.TryParse(ver.ToString(), out veri) && veri == Meta.SaveVersion;
@@ -587,7 +587,7 @@ namespace AxePath
             if (!IsNum(w["generation"])) return Fail(Lines.SaveErrGeneration);
             if (!IsNum(w["deaths"])) return Fail(Lines.SaveErrDeaths);
             if (w["dwarfAlive"] == null || w["dwarfAlive"].Type != JTokenType.Boolean) return Fail(Lines.SaveErrDwarf);
-            var trust = w.Value<string>("trust");
+            var trust = SafeField(w, "trust", 32);
             if (trust != Trust.Cold && trust != Trust.Civil && trust != Trust.Sharp && trust != Trust.Ended) return Fail(Lines.SaveErrTrust);
             var axe = w["axe"] as JObject;
             if (axe == null || axe["have"] == null || axe["have"].Type != JTokenType.Boolean || !IsNum(axe["dullness"])) return Fail(Lines.SaveErrAxe);
@@ -608,7 +608,7 @@ namespace AxePath
             {
                 return Fail(Lines.SaveErrUnreadable);
             }
-            return new SaveResult { ok = true, error = "", world = world, label = SafeField(data, "label", 120), savedAt = data.Value<string>("savedAt") ?? "" };
+            return new SaveResult { ok = true, error = "", world = world, label = SafeField(data, "label", 120), savedAt = SafeField(data, "savedAt", 64) };
         }
 
         public static WolfState CreateWolf(float x, float z)
