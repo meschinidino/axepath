@@ -165,6 +165,43 @@ public class SessionFlow
     }
 
     [UnityTest]
+    public IEnumerator EscResumeRoundtrip()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        S.Player.Teleport(48f, 183.5f, 0f);
+        var w = S.W;
+        var before = S.Player.EyeXZ();
+        S.ToTitle();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Title, S.CurrentState);
+        Assert.IsNotNull(GameObject.Find("HudCanvas/Title"), "title not shown");
+        S.HandleTitleEscape();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Play, S.CurrentState);
+        Assert.IsNull(GameObject.Find("HudCanvas/Title"), "title still shown");
+        Assert.AreSame(w, S.W, "resume replaced the session");
+        var after = S.Player.EyeXZ();
+        Assert.AreEqual(before.x, after.x, 0.01f, "resume respawned");
+        Assert.AreEqual(before.z, after.z, 0.01f, "resume respawned");
+    }
+
+    [UnityTest]
+    public IEnumerator EscDismissesTitleModal()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.ToTitle();
+        yield return null;
+        S.Hud.ShowModal("t", "b", null, null);
+        Assert.IsTrue(S.Hud.IsModalOpen());
+        S.HandleTitleEscape();
+        Assert.IsFalse(S.Hud.IsModalOpen(), "modal survived Esc");
+        Assert.AreEqual(GameSession.State.Title, S.CurrentState);
+    }
+
+    [UnityTest]
     public IEnumerator RealClickPipeline()
     {
         yield return null;

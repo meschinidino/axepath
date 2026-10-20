@@ -592,6 +592,28 @@ namespace AxePath
             Hud.ShowTitle(true);
         }
 
+        // Esc toggle: back to the live session in place. Unlike Continue,
+        // this never respawns or resets anything mid-run. Refuses when no
+        // living session exists (boot title).
+        public void Resume()
+        {
+            if (W == null || !W.player.alive) return;
+            audio.PlayClick();
+            CurrentState = State.Play;
+            Hud.CloseAllScreens();
+            RefreshHud();
+            Hud.ShowHud(true);
+            audio.StartWind();
+            LockCursor();
+            Hud.ShowFirstLock(true);
+        }
+
+        public void HandleTitleEscape()
+        {
+            if (Hud.IsModalOpen()) { audio.PlayClick(); Hud.CloseModal(); }
+            else Resume();
+        }
+
         public void Wake()
         {
             Hud.CloseDeath();
@@ -627,6 +649,11 @@ namespace AxePath
 
         void Update()
         {
+            if (CurrentState == State.Title)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape)) HandleTitleEscape();
+                return;
+            }
             if (CurrentState != State.Play) return;
             if (Input.GetKeyDown(KeyCode.Escape))
             {

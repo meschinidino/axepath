@@ -37,7 +37,7 @@ After building on macOS, strip quarantine once:
 
 - **EditMode (26):** pure game rules in `GameLogic.cs` — trust ladder,
   dulling, wolf brain, saves. No Unity dependencies.
-- **PlayMode (22):** `SessionFlow` drives the real session end to end
+- **PlayMode (24):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
   death → reclaim); `WorldShots` asserts world structure and captures
   viewpoint screenshots to `Assets/Screenshots/` (gitignored, regenerable).

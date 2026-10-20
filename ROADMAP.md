@@ -6,7 +6,7 @@ The full v1 loop is playable end to end in `Builds/AxePath.app`:
 spawn → axe → sketch → uphill forest → wolf → dwarf cold/civil/
 sharpening → ironwood → earned edge, with permadeath generations,
 title/death/save, HUD, synth audio, night sky, and mountain backdrop.
-26 EditMode + 22 PlayMode tests green; viewpoint screenshots verify
+26 EditMode + 24 PlayMode tests green; viewpoint screenshots verify
 every area each run.
 
 Systems are ~90%; content depth, feel, and art are ~50%.
