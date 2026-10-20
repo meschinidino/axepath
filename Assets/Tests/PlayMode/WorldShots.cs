@@ -66,6 +66,28 @@ public class WorldShots
             float pdz = sb.z - peak.z;
             Assert.Greater(pdx * pdx + pdz * pdz, (peakR + 2f) * (peakR + 2f), "smoke inside the peak");
         }
+        // Animated path lock: puffs rise SmokeRise bending downwind, and
+        // the whole path must clear the peak cone, not just the bases.
+        // The cone base sits 2 under grade, mirroring the RockCone call.
+        float peakH = Game.World.refs.cavePeakH;
+        float coneBase = WorldBuilder.PlateauH - 2f;
+        for (int i = 0; i < Game.World.refs.smokePuffs.Count; i++)
+        {
+            var puff = Game.World.refs.smokePuffs[i];
+            float pr = puff.transform.localScale.x * 0.5f;
+            var sb = Game.World.refs.smokeBase[i];
+            for (float rise = 0f; rise <= WorldAnimator.SmokeRise; rise += 5f)
+            {
+                float px = sb.x + rise * WorldAnimator.SmokeDrift;
+                float py = sb.y + rise;
+                if (py < coneBase || py > coneBase + peakH) continue;
+                float rr = peakR * (1f - (py - coneBase) / peakH);
+                float dx = px - peak.x;
+                float dz = sb.z - peak.z;
+                float clear = Mathf.Sqrt(dx * dx + dz * dz) - rr - pr;
+                Assert.Greater(clear, 2f, "smoke path nears peak: " + clear);
+            }
+        }
         Assert.IsNotNull(Game.MainCam);
         // The night sky must survive shader stripping into player builds
         // (the panoramic preload was once missing and builds fell back to
@@ -73,6 +95,30 @@ public class WorldShots
         Assert.IsNotNull(RenderSettings.skybox, "no skybox material");
         // Weather: drifting clouds plus wind-blown leaves, fireflies,
         // and ground mist, all playing.
+        // Berries must sit on foliage: parented under the scaled bush
+        // they inherit its scale and land units outside it, reading as
+        // stemless red blooms. Nearest-bush distance bounds them.
+        var bushes = new List<Transform>();
+        var berries = new List<Transform>();
+        foreach (var tr in GameObject.FindObjectsOfType<Transform>())
+        {
+            if (tr.name == "Bush") bushes.Add(tr);
+            else if (tr.name == "Berry") berries.Add(tr);
+        }
+        Assert.AreEqual(350, bushes.Count);
+        Assert.AreEqual(177, berries.Count);
+        foreach (var berry in berries)
+        {
+            float best = float.MaxValue;
+            foreach (var bush in bushes)
+            {
+                float dx = berry.position.x - bush.position.x;
+                float dz = berry.position.z - bush.position.z;
+                float d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d < best) best = d;
+            }
+            Assert.LessOrEqual(best, 1.5f, "berry adrift of foliage: " + best);
+        }
         Assert.AreEqual(10, Game.World.refs.clouds.Count);
         Assert.IsNotNull(GameObject.Find("Clouds"));
         var leaves = GameObject.Find("WindLeaves");

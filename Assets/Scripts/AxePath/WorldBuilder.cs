@@ -59,6 +59,7 @@ namespace AxePath
         public List<Vector3> smokeBase = new List<Vector3>();
         public Vec2 cavePeak = new Vec2(0f, -375f);
         public float cavePeakR = 55f;
+        public float cavePeakH = 130f;
         public List<GameObject> riverFoam = new List<GameObject>();
         public List<GameObject> riverStreaks = new List<GameObject>();
         public GameObject millWheel;
@@ -896,6 +897,7 @@ namespace AxePath
             ctx.RockCone(0f, -375f, 55f, 130f, gy - 2f, true);
             refs.cavePeak = new Vec2(0f, -375f);
             refs.cavePeakR = 55f;
+            refs.cavePeakH = 130f;
             ctx.RockCone(-35f, -368f, 55f, 120f, gy - 2f, true);
             ctx.Solid(-35f, -368f, 27f);
             // North-right cone stays compact and back: the grove and its
@@ -947,14 +949,14 @@ namespace AxePath
                 float sz = -315f + (rand.Next() - 0.5f) * 3f;
                 smokePos.Add(new Vector3(sx, gy + sy, sz));
             }
-            // Dark matte puffs in a tight column: the transparent cubes
-            // rendered as opaque white blocks, so the smoke is solid
-            // stylized puffs instead. Tight and dark so they read as smoke,
-            // not stray spheres.
+            // Matte gray puffs rising from a tight column: the transparent
+            // cubes rendered as opaque white blocks, so the smoke is solid
+            // stylized puffs instead. Light enough to read against the
+            // dark peak face, not just the sky.
             for (int i = 0; i < 14; i++)
             {
                 float pr = 1.2f + (smokePos[i].x + 1.5f) * 0.25f;
-                var puff = MeshUtil.Ball(R, "Smoke", pr, 0x4a4f57,
+                var puff = MeshUtil.Ball(R, "Smoke", pr, 0x6a7078,
                     smokePos[i].x, smokePos[i].y, smokePos[i].z, false);
                 refs.smokePuffs.Add(puff);
                 refs.smokeBase.Add(smokePos[i]);
@@ -1091,10 +1093,17 @@ namespace AxePath
                 b.transform.localScale = new Vector3(br * 2f, br * 1.1f, br * 2f);
                 if (nb % 6 == 0)
                 {
+                    // Berries parent to the unscaled group, not the bush:
+                    // as children they inherit its scale and land units
+                    // outside the foliage. No new RNG draws here, so the
+                    // shared stream stays bit-identical downstream.
                     for (int i = 0; i < 3; i++)
                     {
                         float a = rand2.Next() * 6.283f;
-                        MeshUtil.Ball(b.transform, "Berry", 0.12f, 0xa83a3a, Mathf.Cos(a) * br, br * 0.4f, Mathf.Sin(a) * br, true);
+                        float brow = br * 0.95f;
+                        MeshUtil.Ball(bushes.transform, "Berry", 0.12f, 0xa83a3a,
+                            x + Mathf.Cos(a) * brow, GroundH(x, z) + br * 0.6f + i * 0.12f,
+                            z + Mathf.Sin(a) * brow, true);
                     }
                 }
                 nb++;
@@ -1195,6 +1204,11 @@ namespace AxePath
         public List<GameObject> clouds;
         public ParticleSystem leafPS;
         public List<Material> fireflyMats;
+        // Smoke loop: each puff rises SmokeRise units, bending downwind
+        // (+x, with the clouds) by SmokeDrift per unit risen. Shared with
+        // the structure test, which locks the path clear of the peak.
+        public const float SmokeRise = 70f;
+        public const float SmokeDrift = 0.7f;
         private float t;
 
         void Update()
@@ -1213,11 +1227,11 @@ namespace AxePath
                     var pos = p.transform.localPosition;
                     pos.y += Time.deltaTime * 2f;
                     float lo = i < smokeBase.Count ? smokeBase[i].y : pos.y;
-                    if (pos.y > lo + 70f) pos.y = lo;
+                    if (pos.y > lo + SmokeRise) pos.y = lo;
                     // Chimney smoke bends downwind (+x, with the clouds)
                     // as it rises, instead of climbing the peak's face.
                     float bx = i < smokeBase.Count ? smokeBase[i].x : pos.x;
-                    pos.x = bx + (pos.y - lo) * 0.35f + Mathf.Sin(t * 0.9f + i * 1.3f) * 0.8f;
+                    pos.x = bx + (pos.y - lo) * SmokeDrift + Mathf.Sin(t * 0.9f + i * 1.3f) * 0.8f;
                     p.transform.localPosition = pos;
                 }
             }
