@@ -9,9 +9,14 @@ namespace AxePath
     {
         public GameObject dwarf;
         public GameObject librarian;
+        // The pack: wolf is the alpha (pack[0]); every entry has matching
+        // eyes and fur materials at the same index.
         public GameObject wolf;
+        public List<GameObject> wolfPack = new List<GameObject>();
         public List<GameObject> wolfEyes = new List<GameObject>();
         public List<Material> wolfFurMats = new List<Material>();
+        public List<List<GameObject>> wolfPackEyes = new List<List<GameObject>>();
+        public List<List<Material>> wolfPackFurMats = new List<List<Material>>();
     }
 
     public static class ActorBuilder
@@ -63,28 +68,46 @@ namespace AxePath
             MeshUtil.Box(librarian.transform, "Book", 0.5f, 0.08f, 0.3f, 0xd9cfae, 0f, 1.1f, 0.3f);
             refs.librarian = librarian;
 
-            // Wolf (faces +z like the slice; the game orients it at runtime).
+            // Wolf pack (each faces +z like the slice; the game orients them
+            // at runtime). One body per home den; the alpha keeps the name
+            // "Wolf" so existing lookups still land.
+            for (int w = 0; w < spots.wolfHomes.Count; w++)
+            {
+                var home = spots.wolfHomes[w];
+                var eyes = new List<GameObject>();
+                var mats = new List<Material>();
+                var wolf = BuildWolf(actors.transform, home.x, home.z, w == 0 ? "Wolf" : "Wolf" + w, eyes, mats);
+                refs.wolfPack.Add(wolf);
+                refs.wolfPackEyes.Add(eyes);
+                refs.wolfPackFurMats.Add(mats);
+            }
+            refs.wolf = refs.wolfPack[0];
+            refs.wolfEyes = refs.wolfPackEyes[0];
+            refs.wolfFurMats = refs.wolfPackFurMats[0];
+
+            return refs;
+        }
+
+        private static GameObject BuildWolf(Transform parent, float x, float z, string name, List<GameObject> eyes, List<Material> furMats)
+        {
             uint fur = 0x23262c;
-            var wolf = new GameObject("Wolf");
-            wolf.transform.SetParent(actors.transform, false);
-            wolf.transform.localPosition = new Vector3(spots.den.x, WorldBuilder.GroundH(spots.den.x, spots.den.z), spots.den.z);
-            var furMats = refs.wolfFurMats;
+            var wolf = new GameObject(name);
+            wolf.transform.SetParent(parent, false);
+            wolf.transform.localPosition = new Vector3(x, WorldBuilder.GroundH(x, z), z);
             Part(wolf.transform, "Body", 0.55f, 0.5f, 1.3f, fur, 0f, 0.62f, 0f, furMats);
             Part(wolf.transform, "Head", 0.42f, 0.4f, 0.5f, fur, 0f, 0.95f, 0.8f, furMats);
             Part(wolf.transform, "Snout", 0.2f, 0.2f, 0.3f, 0x1a1d22, 0f, 0.85f, 1.15f, furMats);
             var eyeL = MeshUtil.Ball(wolf.transform, "Eye", 0.05f, 0xff8a3a, -0.13f, 1.02f, 1.02f, true);
             var eyeR = MeshUtil.Ball(wolf.transform, "Eye", 0.05f, 0xff8a3a, 0.13f, 1.02f, 1.02f, true);
-            refs.wolfEyes.Add(eyeL);
-            refs.wolfEyes.Add(eyeR);
+            eyes.Add(eyeL);
+            eyes.Add(eyeR);
             Part(wolf.transform, "Tail", 0.12f, 0.12f, 0.7f, fur, 0f, 0.75f, -0.9f, furMats);
             float[,] legs = new float[,] { {-0.2f,0.4f},{0.2f,0.4f},{-0.2f,-0.4f},{0.2f,-0.4f} };
             for (int i = 0; i < 4; i++)
             {
                 Part(wolf.transform, "Leg", 0.14f, 0.5f, 0.14f, fur, legs[i, 0], 0.25f, legs[i, 1], furMats);
             }
-            refs.wolf = wolf;
-
-            return refs;
+            return wolf;
         }
     }
 }

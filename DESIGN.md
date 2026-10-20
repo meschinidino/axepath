@@ -24,12 +24,13 @@ words. This slice is one complete path: the axe.
 ## The v1 loop
 
 1. Wake in the village. Take the lumber axe from the yard.
-2. Take the route sketch at the lean-to (the book stays with the
+2. Take the route sketch at the book nook (the book stays with the
    librarian). Hear the route: pines, split rock, smoke.
-3. Climb the 8m forest ramp. Chop pines to learn the swing — every chop
+3. Climb the 40m forest ramp. Chop pines to learn the swing — every chop
    dulls the edge (9/chop, 6/wolf-hit; 0–100).
-4. Mind the wolf den west of the path (hears walking at 8u, running
-   at 25u; leashes at 40u). Three wounds kill you.
+4. Mind the wolves (hear walking at 30u, running at 90u; leash at
+   150u): three at the den west of the path, two ranging the forest.
+   Three wounds kill you.
 5. Reach the unmarked cave. Cold dwarf while your edge is keen.
 6. Past 40 dullness, talk again: arrival, thaw to civil. He names the
    price: one ironwood log, past the cave to the east.
@@ -38,16 +39,24 @@ words. This slice is one complete path: the axe.
 8. Turn it in: the edge comes back sharp, permanently better at holding
    (20% dulling thereafter). Loop complete; the forest remains.
 
-## The valley (north = -Z, cave ≈ (0,-56))
+## The valley (north = -Z, cave ≈ (0,-280))
 
-Village flats (h 0): spawn, lumber yard, lean-to library, two huts.
-Forest ramp (8m climb): 300 seeded pines, wolf den west, split-rock and
-three-pine landmarks, axe blazes along the path, approach rocks/pines.
-Cave shelf (h 8): mouth with ember glow, forge + anvil + smoke inside,
-dwarf at (-2,-61). Ironwood grove east past the cave: pale shimmering
-trunks, dark crowns, one fallen log under cool light.
-Backdrop: three snow-capped peaks beyond the north bound, night sky
-with moon and stars, exp-fogged treeline.
+Village flats (h 0): spawn, lumber yard, book-nook library, two
+huts — Riverwood-style, on the west bank of a river that runs the
+whole valley south. A lumber mill with a water wheel works the bank;
+a bridge crosses to a cold camp on the east side.
+Forest ramp (40m climb): 1450 seeded pines, oaks, and birches, wolf
+pack west of the path, a winding path with one landmark per leg
+(three pines, split rock, rune waystone), axe blazes along the path,
+approach rocks/pines, flower drifts and berry bushes throughout.
+Cave mountain (h 40): the dwarf's hall cut into a seven-cone massif —
+stone arch mouth with ember glow, forge + anvil + smoke inside,
+dwarf at (-4,-312). Ironwood grove east past the cave: pale
+shimmering trunks, dark crowns, one fallen log under cool light.
+Backdrop: three snow-capped ranges beyond the north bound, night sky
+with moon, Milky Way, and drifting cloud banks, exp-fogged treeline.
+Weather: one global gust steers streaming leaves and blinking
+fireflies (lowlands + grove); current streaks texture the river.
 
 ## Knowledge systems
 

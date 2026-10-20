@@ -16,10 +16,10 @@ namespace AxePath
 
     public static class Tuning
     {
-        public const float WolfHearWalk = 8f;
-        public const float WolfHearRun = 25f;
+        public const float WolfHearWalk = 30f;
+        public const float WolfHearRun = 90f;
         public const float WolfWarnSecs = 3f;
-        public const float WolfLeash = 40f;
+        public const float WolfLeash = 150f;
         public const int WolfHitsToKill = 3;
         public const float WolfChaseSpeed = 4.2f;
         public const float WolfAttackRange = 1.7f;
@@ -54,9 +54,9 @@ namespace AxePath
 
     public static class Lines
     {
-        public const string LibrarianRoute = "Three pines east. Split rock. Then follow the smoke. Take the sketch, the book stays with me.";
-        public const string LibrarianReplay = "Three pines, split rock, smoke. The sketch is in your hands. Go carefully.";
-        public const string BookSketch = "THREE PINES EAST out of the village.\nSPLIT ROCK where the path forks.\nSMOKE over the treeline marks the cave.\n\nOf the mountain smith, young and welcoming to all who climb with honest need. — S.";
+        public const string LibrarianRoute = "Three pines. Split rock. The waystone's rune. Then follow the smoke. Take the sketch, the book stays with me.";
+        public const string LibrarianReplay = "Pines, rock, waystone, smoke. The sketch is in your hands. Go carefully.";
+        public const string BookSketch = "THREE PINES where the village lets go.\nSPLIT ROCK astride the path — pass it close.\nTHE WAYSTONE'S RUNE, halfway up, gold in the dark.\nSMOKE over the treeline marks the cave.\n\nOf the mountain smith, young and welcoming to all who climb with honest need. — S.";
         public const string DwarfCold = "State your business. Quickly.";
         public const string DwarfArrival = "...That edge. You walked here. Hm. Perhaps you are not entirely soft.";
         public const string DwarfCivil = "Ironwood. Past my cave to the east, where the pale trunks grow. Bring one log and we will see.";
@@ -66,11 +66,11 @@ namespace AxePath
         public const string DwarfDeadNote = "The forge is cold. Whatever the dwarf knew about the axe is gone with him.";
         public static readonly string[] Blaze = new string[]
         {
-            "Old axe-mark, gray with weather. Someone came this way before you, and wanted the next one to know.",
-            "Fresh chips around an old mark. More than one climber has passed here. Few, perhaps, came back.",
-            "The mark faces north, toward the smoke. Whoever left it knew the way.",
+            "Axe-mark, gray with weather, cut chest-high facing the climb. Someone came this way before you and wanted the next one to know it.",
+            "Fresh chips scattered under an old mark. More than one climber has passed here. Few, perhaps, came back.",
+            "Axe-mark facing the walker, not the wood. Follow the marks north and the smoke will find you.",
         };
-        public const string GuideEast = "The mark faces east, not north. Three short strokes beneath it, cut with purpose. Whoever left it wanted the next climber to turn aside here.";
+        public const string GuideEast = "The mark faces east, not north, with three short strokes cut beneath it. Whoever left it wanted the next climber to turn aside here.";
 
         // HUD chrome (Hud.cs). Byte-identical centralization; no rewording.
         public const string HudHealth = "health";

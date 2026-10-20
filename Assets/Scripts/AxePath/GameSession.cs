@@ -38,22 +38,28 @@ namespace AxePath
         public float reach = 3.4f;
     }
 
+    public class WolfUnit
+    {
+        public WolfState brain;
+        public WolfFx fx;
+        public int hp;
+        public WolfView view;
+    }
+
     public class GameSession : MonoBehaviour
     {
         public enum State { Title, Play }
 
         public State CurrentState { get; private set; }
         public WorldState W { get; private set; }
-        public WolfState Wolf { get; private set; }
-        public WolfFx WolfFx { get; private set; }
-        public int WolfHp { get; private set; }
+        public List<WolfUnit> Wolves { get; private set; }
         public PlayerController Player { get; private set; }
         public Hud Hud { get; private set; }
 
         private GameWorld world;
         private ActorRefs actors;
         private AudioSynth audio;
-        private WolfView wolfView;
+        private List<WolfView> wolfViews;
         private NpcView npcView;
         private Saver saver;
         private float wolfCooldown;
@@ -69,20 +75,30 @@ namespace AxePath
         private float howlT;
         private DropPos pendingDeathPos;
 
-        public void StartSession(GameWorld world, ActorRefs actors, PlayerController p, Hud h, AudioSynth audio, WolfView wolfView, NpcView npcView)
+        public void StartSession(GameWorld world, ActorRefs actors, PlayerController p, Hud h, AudioSynth audio, List<WolfView> wolfViews, NpcView npcView)
         {
             this.world = world;
             this.actors = actors;
             Player = p;
             Hud = h;
             this.audio = audio;
-            this.wolfView = wolfView;
+            this.wolfViews = wolfViews;
             this.npcView = npcView;
             saver = new Saver(new FileBackend());
-            Wolf = Logic.CreateWolf(world.spots.den.x, world.spots.den.z);
-            WolfFx = new WolfFx();
-            WolfHp = 2;
-            wolfView.Bind(actors.wolf, actors.wolfEyes, actors.wolfFurMats, Wolf, WolfFx);
+            Wolves = new List<WolfUnit>();
+            for (int i = 0; i < world.spots.wolfHomes.Count; i++)
+            {
+                var home = world.spots.wolfHomes[i];
+                var unit = new WolfUnit
+                {
+                    brain = Logic.CreateWolf(home.x, home.z),
+                    fx = new WolfFx(),
+                    hp = 2,
+                    view = wolfViews[i],
+                };
+                Wolves.Add(unit);
+                wolfViews[i].Bind(actors.wolfPack[i], actors.wolfPackEyes[i], actors.wolfPackFurMats[i], unit.brain, unit.fx);
+            }
             npcView.Bind(actors.dwarf, actors.librarian);
             Player.OnStep += () => audio.PlayStep(Player.running);
             Hud.OnWake += () => { audio.PlayClick(); Wake(); };
@@ -131,10 +147,7 @@ namespace AxePath
             slot = s;
             CurrentState = State.Play;
             Player.Respawn(new Vector3(world.spots.spawn.x, 0f, world.spots.spawn.z));
-            Wolf = Logic.CreateWolf(world.spots.den.x, world.spots.den.z);
-            WolfFx = new WolfFx();
-            wolfView.Rebind(Wolf, WolfFx);
-            WolfHp = 2;
+            ResetPack();
             wolfCooldown = 0f;
             lostT = 0f;
             howlT = 12f;
@@ -163,7 +176,10 @@ namespace AxePath
             Cursor.visible = true;
         }
 
-        private bool IsLocked() { return Cursor.lockState == CursorLockMode.Locked; }
+        // A batchmode run (automated tests) has no window and no cursor:
+        // lock requests are silently ignored there, so the sim must not
+        // wait on them. Real players never run batchmode.
+        private bool IsLocked() { return Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked; }
 
         private bool OverlaysOpen()
         {
@@ -198,7 +214,22 @@ namespace AxePath
             r.cairn.SetActive(c != null);
             if (c != null) r.cairn.transform.localPosition = new Vector3(c.x, WorldBuilder.GroundH(c.x, c.z), c.z);
             actors.dwarf.SetActive(W.dwarfAlive);
-            actors.wolf.SetActive(Wolf.alive);
+            for (int i = 0; i < Wolves.Count; i++)
+            {
+                actors.wolfPack[i].SetActive(Wolves[i].brain.alive);
+            }
+        }
+
+        private void ResetPack()
+        {
+            for (int i = 0; i < Wolves.Count; i++)
+            {
+                var home = world.spots.wolfHomes[i];
+                Wolves[i].brain = Logic.CreateWolf(home.x, home.z);
+                Wolves[i].fx = new WolfFx();
+                Wolves[i].hp = 2;
+                Wolves[i].view.Rebind(Wolves[i].brain, Wolves[i].fx);
+            }
         }
 
         private string Autosave(string label)
@@ -436,26 +467,35 @@ namespace AxePath
             }
             if (!Player.TrySwing(W.skill.swingMs * 0.8f)) return;
             var p = Player.EyeXZ();
-            if (Wolf.alive && Ahead(Wolf.pos.x, Wolf.pos.z, Tuning.AxeReach))
+            WolfUnit target = null;
+            float targetD = float.MaxValue;
+            foreach (var u in Wolves)
+            {
+                if (!u.brain.alive) continue;
+                if (!Ahead(u.brain.pos.x, u.brain.pos.z, Tuning.AxeReach)) continue;
+                float d = Gdist(p.x, p.z, u.brain.pos.x, u.brain.pos.z);
+                if (d < targetD) { targetD = d; target = u; }
+            }
+            if (target != null)
             {
                 audio.PlayHit();
                 audio.PlayYelp();
                 Hud.FlashCross();
-                WolfHp -= 1;
-                WolfFx.hitT = Tuning.WolfHitSecs;
-                WolfFx.flashT = Tuning.WolfFlashSecs;
-                WolfFx.flashed = true;
-                float wdx = Wolf.pos.x - p.x;
-                float wdz = Wolf.pos.z - p.z;
+                target.hp -= 1;
+                target.fx.hitT = Tuning.WolfHitSecs;
+                target.fx.flashT = Tuning.WolfFlashSecs;
+                target.fx.flashed = true;
+                float wdx = target.brain.pos.x - p.x;
+                float wdz = target.brain.pos.z - p.z;
                 float wd = Mathf.Sqrt(wdx * wdx + wdz * wdz);
                 if (wd == 0f) wd = 1f;
-                WolfFx.hitDir = new Vec2(wdx / wd, wdz / wd);
-                WolfFx.knockT = Tuning.WolfHitSecs;
-                WolfFx.knockDir = new Vec2(wdx / wd, wdz / wd);
+                target.fx.hitDir = new Vec2(wdx / wd, wdz / wd);
+                target.fx.knockT = Tuning.WolfHitSecs;
+                target.fx.knockDir = new Vec2(wdx / wd, wdz / wd);
                 wolfCooldown = Mathf.Max(wolfCooldown, Tuning.WolfStaggerSecs);
-                if (WolfHp <= 0)
+                if (target.hp <= 0)
                 {
-                    Wolf.alive = false;
+                    target.brain.alive = false;
                     Logic.UseAxe(W, "hit");
                     RefreshHud();
                     Hud.SetPrompt(Lines.PromptWolfStill, 2.2f);
@@ -558,10 +598,7 @@ namespace AxePath
             Logic.Die(W, pendingDeathPos ?? new DropPos { x = 0f, z = 42f });
             pendingDeathPos = null;
             Player.Respawn(new Vector3(world.spots.spawn.x, 0f, world.spots.spawn.z));
-            Wolf = Logic.CreateWolf(world.spots.den.x, world.spots.den.z);
-            WolfFx = new WolfFx();
-            wolfView.Rebind(Wolf, WolfFx);
-            WolfHp = 2;
+            ResetPack();
             wolfCooldown = 0f;
             lostT = 0f;
             howlT = 12f;
@@ -644,18 +681,18 @@ namespace AxePath
                 visitedMouth = true;
                 Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelCave);
             }
-            bool inside = p.x > -30f && p.x < 30f && p.z > -70f && p.z < 45f;
+            bool inside = p.x > -220f && p.x < 220f && p.z > -380f && p.z < 240f;
             if (!inside)
             {
                 lostT += dt;
                 if (lostT > 150f)
                 {
                     lostT = 0f;
-                    Player.Teleport(0f, 42f, 0f);
+                    Player.Teleport(0f, 210f, 0f);
                     if (W.axe.have)
                     {
                         W.axe.have = false;
-                        W.axe.droppedAt = new DropPos { x = 1.5f, z = 42f };
+                        W.axe.droppedAt = new DropPos { x = 7f, z = 210f };
                     }
                     Autosave(Lines.LabelGenPrefix + W.generation + Lines.LabelStumbled);
                     RefreshHud();
@@ -665,45 +702,56 @@ namespace AxePath
             else lostT = 0f;
 
             wolfCooldown = Mathf.Max(0f, wolfCooldown - dt);
-            var wres = Logic.WolfStep(Wolf, p.x, p.z, Player.running, W.skill.noiseMul, dt, null);
-            foreach (var ev in wres.events)
+            // The pack shares one attack cooldown: three wolves cornering
+            // you still wound at the lone-wolf rate.
+            foreach (var u in Wolves)
             {
-                if (ev == "growl")
+                var wres = Logic.WolfStep(u.brain, p.x, p.z, Player.running, W.skill.noiseMul, dt, null);
+                foreach (var ev in wres.events)
                 {
-                    audio.PlayGrowl();
-                    Hud.SetPrompt(Lines.PromptGrowl, 2.5f);
-                }
-                else if (ev == "chase") audio.PlayChase();
-                else if (ev == "attack" && wolfCooldown <= 0f)
-                {
-                    wolfCooldown = 1.2f;
-                    audio.PlayHit();
-                    Hud.HurtFlash();
-                    if (Logic.DamagePlayer(W, 1))
+                    if (ev == "growl")
                     {
-                        Die();
-                        return;
+                        audio.PlayGrowl();
+                        Hud.SetPrompt(Lines.PromptGrowl, 2.5f);
                     }
-                    RefreshHud();
+                    else if (ev == "chase") audio.PlayChase();
+                    else if (ev == "attack" && wolfCooldown <= 0f)
+                    {
+                        wolfCooldown = 1.2f;
+                        audio.PlayHit();
+                        Hud.HurtFlash();
+                        if (Logic.DamagePlayer(W, 1))
+                        {
+                            Die();
+                            return;
+                        }
+                        RefreshHud();
+                    }
                 }
-            }
-            if (wres.hasMove)
-            {
-                float sp = Wolf.state == "chase" ? Tuning.WolfChaseSpeed : 2.2f;
-                Wolf.pos.x += wres.move.x * sp * dt;
-                Wolf.pos.z += wres.move.z * sp * dt;
+                if (wres.hasMove)
+                {
+                    float sp = u.brain.state == "chase" ? Tuning.WolfChaseSpeed : 2.2f;
+                    u.brain.pos.x += wres.move.x * sp * dt;
+                    u.brain.pos.z += wres.move.z * sp * dt;
+                }
             }
 
             howlT -= dt;
             if (howlT <= 0f)
             {
                 howlT = UnityEngine.Random.Range(18f, 30f);
-                if (Wolf.alive && dialogue == null)
+                if (dialogue == null)
                 {
-                    float dDen = Gdist(p.x, p.z, spots.den.x, spots.den.z);
-                    if (dDen > 15f && dDen < 60f)
+                    float nearest = float.MaxValue;
+                    foreach (var u in Wolves)
                     {
-                        audio.PlayHowl(1f - (dDen - 15f) / 45f);
+                        if (!u.brain.alive) continue;
+                        float d = Gdist(p.x, p.z, u.brain.pos.x, u.brain.pos.z);
+                        if (d < nearest) nearest = d;
+                    }
+                    if (nearest > 40f && nearest < 300f)
+                    {
+                        audio.PlayHowl(1f - (nearest - 40f) / 260f);
                         Hud.SetPrompt(Lines.PromptHowl, 2.5f);
                     }
                 }
@@ -717,7 +765,7 @@ namespace AxePath
                 Hud.SetPrompt(t != null ? t.label : "", 0f);
             }
 
-            wolfView.Tick(dt, playT, Player.transform.position);
+            foreach (var u in Wolves) u.view.Tick(dt, playT, Player.transform.position);
             npcView.Tick(dt, playT, Player.transform.position, W.dwarfAlive);
         }
     }

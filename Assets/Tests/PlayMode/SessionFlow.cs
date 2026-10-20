@@ -24,6 +24,9 @@ public class SessionFlow
         string full = Path.Combine(Application.dataPath, "Screenshots/" + name + ".png");
         try { if (File.Exists(full)) File.Delete(full); } catch { }
         ScreenCapture.CaptureScreenshot(rel);
+        // ScreenCapture writes on frame present, which never happens in a
+        // batchmode test player — the file assert only holds in the editor.
+        if (Application.isBatchMode) yield break;
         float t0 = Time.realtimeSinceStartup;
         while (!File.Exists(full) && Time.realtimeSinceStartup - t0 < 15f) yield return null;
         Assert.IsTrue(File.Exists(full), "screenshot missing: " + name);
@@ -35,6 +38,8 @@ public class SessionFlow
         yield return null;
         Assert.IsNotNull(Game.Session, "Boot did not run");
         var S = Game.Session;
+        // Order-independent: earlier suites may have left a live session.
+        S.ToTitle();
         Assert.AreEqual(GameSession.State.Title, S.CurrentState);
         yield return Shot("flow-title");
 
@@ -43,7 +48,7 @@ public class SessionFlow
         Assert.IsFalse(S.W.axe.have);
 
         // Axe.
-        S.Player.Teleport(-6f, 34.5f, 0f);
+        S.Player.Teleport(-30f, 178.5f, 0f);
         Assert.AreEqual("axe", S.InteractTarget().id);
         S.TryInteract();
         Assert.IsTrue(S.W.axe.have);
@@ -55,7 +60,7 @@ public class SessionFlow
         yield return Shot("flow-hud");
 
         // Book.
-        S.Player.Teleport(7f, 36.5f, 0f);
+        S.Player.Teleport(35f, 188.5f, 0f);
         Assert.AreEqual("bookstand", S.InteractTarget().id);
         S.TryInteract();
         Assert.IsTrue(S.W.book.have);
@@ -63,24 +68,36 @@ public class SessionFlow
         S.CloseBookPublic();
         Assert.IsFalse(S.Hud.IsBookOpen());
 
+        // Librarian: her talk hands over nothing new — the sketch is
+        // already in hand and her books stay on the shelves.
+        S.Player.Teleport(48f, 183.5f, 0f);
+        Assert.AreEqual("librarian", S.InteractTarget().id);
+        S.TryInteract();
+        Assert.IsTrue(S.W.book.have);
+        Assert.IsTrue(S.W.flags.metLibrarian);
+        Assert.IsTrue(S.Hud.IsDialogueOpen());
+        S.AdvanceDialogue();
+        Assert.IsFalse(S.Hud.IsDialogueOpen());
+
         // Tree chop at the landmark pine.
-        S.Player.Teleport(0f, 32.5f, Face(0f, 32.5f, 0f, 30f));
+        S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
         S.TryAttack();
         Assert.AreEqual(1, S.W.skill.chops);
         Assert.AreEqual(9f, S.W.axe.dullness);
         Assert.AreEqual("Chips fly.", S.Hud.PromptText());
         yield return new WaitForSeconds(0.8f);
 
-        // Wolf fight at the den.
-        S.Wolf.state = "chase";
-        S.Wolf.pos = new Vec2(-14f, 2f);
-        S.Player.Teleport(-14f, 3.5f, Face(-14f, 3.5f, -14f, 2f));
+        // Wolf fight at the den (alpha of the pack).
+        Assert.AreEqual(5, S.Wolves.Count);
+        S.Wolves[0].brain.state = "chase";
+        S.Wolves[0].brain.pos = new Vec2(-70f, 2f);
+        S.Player.Teleport(-70f, 3.5f, Face(-70f, 3.5f, -70f, 2f));
         S.TryAttack();
-        Assert.AreEqual(1, S.WolfHp);
+        Assert.AreEqual(1, S.Wolves[0].hp);
         Assert.AreEqual("The wolf snarls, wounded.", S.Hud.PromptText());
         yield return new WaitForSeconds(0.8f);
         S.TryAttack();
-        Assert.IsFalse(S.Wolf.alive);
+        Assert.IsFalse(S.Wolves[0].brain.alive);
         Assert.AreEqual(1, S.W.skill.kills);
         Assert.AreEqual("The wolf is still. The forest feels larger.", S.Hud.PromptText());
         Assert.IsTrue(S.W.player.alive);
@@ -89,7 +106,7 @@ public class SessionFlow
 
         // Thaw with a dulled axe.
         S.W.axe.dullness = 45f;
-        S.Player.Teleport(-2f, -59f, Face(-2f, -59f, -2f, -61f));
+        S.Player.Teleport(-4f, -310f, Face(-4f, -310f, -4f, -312f));
         Assert.AreEqual("dwarf", S.InteractTarget().id);
         S.TryInteract();
         Assert.AreEqual(Trust.Civil, S.W.trust);
@@ -98,12 +115,12 @@ public class SessionFlow
         Assert.IsFalse(S.Hud.IsDialogueOpen());
 
         // Ironwood turn-in.
-        S.Player.Teleport(16f, -66.5f, 0f);
+        S.Player.Teleport(72f, -337f, 0f);
         Assert.AreEqual("ironwood", S.InteractTarget().id);
         S.TryInteract();
         Assert.AreEqual(1, S.W.ironwood.have);
         S.AdvanceDialogue();
-        S.Player.Teleport(-2f, -59f, Face(-2f, -59f, -2f, -61f));
+        S.Player.Teleport(-4f, -310f, Face(-4f, -310f, -4f, -312f));
         S.TryInteract();
         Assert.AreEqual(Trust.Sharp, S.W.trust);
         Assert.IsTrue(S.W.axe.sharpened);
@@ -111,7 +128,7 @@ public class SessionFlow
         S.AdvanceDialogue();
 
         // Death and corpse run.
-        S.Player.Teleport(0f, 20f, 0f);
+        S.Player.Teleport(0f, 100f, 0f);
         S.DebugDamage(99);
         Assert.IsTrue(S.Hud.IsDeathOpen());
         yield return Shot("flow-death");
@@ -181,10 +198,10 @@ public class SessionFlow
         yield return null;
         var S = Game.Session;
         S.NewGame(2);
-        S.Player.Teleport(-6f, 34.5f, 0f);
+        S.Player.Teleport(-30f, 178.5f, 0f);
         S.TryInteract();
         Assert.IsTrue(S.Hud.IsDialogueOpen());
-        S.Player.Teleport(-6f, 20f, 0f);
+        S.Player.Teleport(-30f, 100f, 0f);
         yield return null;
         yield return null;
         Assert.IsFalse(S.Hud.IsDialogueOpen());

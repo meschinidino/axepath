@@ -335,8 +335,8 @@ public class WolfBrainTests
         wolf.state = "chase";
         var o = Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
         CollectionAssert.AreEqual(new string[] { "attack" }, o.events);
-        wolf.pos = new Vec2(0f, 100f);
-        o = Logic.WolfStep(wolf, 0f, 100f, false, 1f, 0.1f, null);
+        wolf.pos = new Vec2(0f, 200f);
+        o = Logic.WolfStep(wolf, 0f, 200f, false, 1f, 0.1f, null);
         CollectionAssert.AreEqual(new string[] { "leash" }, o.events);
         Assert.AreEqual("return", wolf.state);
     }

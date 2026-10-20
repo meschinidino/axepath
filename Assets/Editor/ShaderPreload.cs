@@ -14,6 +14,7 @@ public static class ShaderPreload
         Make("PreloadUnlitColor", "Unlit/Color");
         Make("PreloadUnlitTransparent", "Unlit/Transparent");
         Make("PreloadPanoramic", "Skybox/Panoramic");
+        Make("PreloadParticlesUnlit", "Particles/Standard Unlit");
         AssetDatabase.Refresh();
         Debug.Log("SHADERPRELOAD: done");
     }

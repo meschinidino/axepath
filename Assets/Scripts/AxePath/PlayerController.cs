@@ -41,8 +41,8 @@ namespace AxePath
             cam.backgroundColor = MeshUtil.C(0x1a2438);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.fieldOfView = 72f;
-            cam.nearClipPlane = 0.1f;
-            cam.farClipPlane = 300f;
+            cam.nearClipPlane = 0.2f;
+            cam.farClipPlane = 1500f;
             Cam = cam;
 
             axeView = new GameObject("AxeView");

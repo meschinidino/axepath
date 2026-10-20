@@ -6,20 +6,23 @@ The full v1 loop is playable end to end in `Builds/AxePath.app`:
 spawn → axe → sketch → uphill forest → wolf → dwarf cold/civil/
 sharpening → ironwood → earned edge, with permadeath generations,
 title/death/save, HUD, synth audio, night sky, and mountain backdrop.
-23 EditMode + 12 PlayMode tests green; viewpoint screenshots verify
+25 EditMode + 22 PlayMode tests green; viewpoint screenshots verify
 every area each run.
 
 Systems are ~90%; content depth, feel, and art are ~50%.
 
 ## Next, in order
 
-1. **Notes rework (playtest feedback).** Rewrite blaze/sketch/guide
-   texts for voice and usefulness; audit mark placement (visibility
-   from the walking line, no floaters, no duplicates); keep the
-   books-hint-never-grant rule.
-2. **Journey update.** The dwarf path still runs short and easy.
-   Lengthen the climb (wind the path, add a second landmark beat),
-   tune wolf pressure and dull pacing so arrival feels earned.
+1. **Notes rework (playtest feedback).** Done: blaze/sketch/guide
+   rewritten around the waystone beat; 6 plaques audited (each
+   within 30u of the path, south face toward the walker; a pine is
+   planted wherever a spot finds no close trunk); librarian talk
+   grants nothing beyond the sketch.
+2. **Journey update.** Done: path wound, waystone beat + book nook
+   in. Tune held — probe pins: 6 chops dull 54, 12 cap 100
+   (swing 590→470ms); walker unheard on path at 58u, noticed at
+   25u, runner heard; chase 4.2 < run 7.2, escape always possible.
+   No constant changes.
 3. **Feel and balance.** Chop/wolf-hit feedback juice, swing timing
    vs cooldown, wolf HP/hearing/leash numbers, prompt-hold timings.
    Playtest-driven, one variable at a time.
