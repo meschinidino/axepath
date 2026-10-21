@@ -9,6 +9,9 @@ releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 
 - CI actions bumped off deprecated Node 20 (checkout v7, cache v6,
   upload-artifact v7, gh-release v3).
+- macOS builds and both test suites retry once in-job on failure
+  (net for transient runner OOMs; genuine breaks still fail twice
+  and loudly).
 
 ## [0.1.0] - 2026-10-21
 

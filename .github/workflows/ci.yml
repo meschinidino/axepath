@@ -48,8 +48,12 @@ jobs:
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      # Same OOM flake net as the build: shared runners SIGKILL (137)
+      # the compile spike on a bad day. Attempt 2 runs only if 1 fails;
+      # genuine failures fail twice and loudly below.
       - uses: game-ci/unity-test-runner@v4
-        id: tests
+        id: tests1
+        continue-on-error: true
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -58,6 +62,20 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
+      - uses: game-ci/unity-test-runner@v4
+        id: tests2
+        if: steps.tests1.outcome == 'failure'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: test-results/${{ matrix.testMode }}
+          checkName: ${{ matrix.testMode }} Test Results
+      - name: Fail the job when both test attempts failed
+        if: steps.tests1.outcome == 'failure' && steps.tests2.outcome != 'success'
+        run: exit 1
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -77,7 +95,12 @@ jobs:
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      # OOM flake net: shared runners occasionally SIGKILL (137) the
+      # parallel compile spike. Attempt 2 runs only if 1 fails and reuses
+      # its warm workspace; genuine breaks fail twice and loudly below.
       - uses: game-ci/unity-builder@v6
+        id: build1
+        continue-on-error: true
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -86,6 +109,34 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
+      # A killed attempt can leave untracked byproducts (seen once:
+      # an empty Assets/Editor/Editor/ dir) that trip the builder's
+      # clean-tree pre-check. Scrub the source trees — ignored paths
+      # (Library, build) keep their warm state for attempt 2.
+      - name: Clean worktree dirt left by a failed attempt
+        id: cleanup
+        if: steps.build1.outcome == 'failure'
+        run: |
+          echo '--- pre-cleanup status ---'
+          git status --porcelain
+          git checkout -- .
+          git clean -fdq -- Assets/ Packages/ ProjectSettings/
+          echo '--- post-cleanup status ---'
+          git status --porcelain
+      - uses: game-ci/unity-builder@v6
+        id: build2
+        if: steps.build1.outcome == 'failure' && steps.cleanup.outcome == 'success'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          targetPlatform: StandaloneOSX
+          buildName: AxePath
+          buildsPath: build
+      - name: Fail the job when both build attempts failed
+        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
+        run: exit 1
       - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS
