@@ -77,7 +77,12 @@ jobs:
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      # OOM flake net: shared runners occasionally SIGKILL (137) the
+      # parallel compile spike. Attempt 2 runs only if 1 fails and reuses
+      # its warm workspace; genuine breaks fail twice and loudly below.
       - uses: game-ci/unity-builder@v6
+        id: build1
+        continue-on-error: true
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -86,6 +91,20 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
+      - uses: game-ci/unity-builder@v6
+        id: build2
+        if: steps.build1.outcome == 'failure'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          targetPlatform: StandaloneOSX
+          buildName: AxePath
+          buildsPath: build
+      - name: Fail the job when both build attempts failed
+        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
+        run: exit 1
       - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS

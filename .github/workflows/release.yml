@@ -32,7 +32,11 @@ jobs:
           key: Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-
+      # Same OOM flake net as CI: attempt 2 reuses attempt 1's warm
+      # workspace; genuine breaks fail twice and loudly below.
       - uses: game-ci/unity-builder@v6
+        id: build1
+        continue-on-error: true
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -41,6 +45,20 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
+      - uses: game-ci/unity-builder@v6
+        id: build2
+        if: steps.build1.outcome == 'failure'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ steps.unity.outputs.version }}
+          targetPlatform: StandaloneOSX
+          buildName: AxePath
+          buildsPath: build
+      - name: Fail the job when both build attempts failed
+        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
+        run: exit 1
       - name: Zip the .app
         run: cd build/StandaloneOSX && zip -r -y ../../AxePath-macOS.zip AxePath.app
       - uses: softprops/action-gh-release@v3
