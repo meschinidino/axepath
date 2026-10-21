@@ -91,9 +91,23 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
+      # A killed attempt can leave untracked byproducts (seen once:
+      # an empty Assets/Editor/Editor/ dir) that trip the builder's
+      # clean-tree pre-check. Scrub the source trees — ignored paths
+      # (Library, build) keep their warm state for attempt 2.
+      - name: Clean worktree dirt left by a failed attempt
+        id: cleanup
+        if: steps.build1.outcome == 'failure'
+        run: |
+          echo '--- pre-cleanup status ---'
+          git status --porcelain
+          git checkout -- .
+          git clean -fdq -- Assets/ Packages/ ProjectSettings/
+          echo '--- post-cleanup status ---'
+          git status --porcelain
       - uses: game-ci/unity-builder@v6
         id: build2
-        if: steps.build1.outcome == 'failure'
+        if: steps.build1.outcome == 'failure' && steps.cleanup.outcome == 'success'
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
