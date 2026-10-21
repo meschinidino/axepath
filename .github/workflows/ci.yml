@@ -1,0 +1,92 @@
+# Axe Path CI: test suites + macOS player on every push and PR.
+#
+# Needs repo secrets (Settings > Secrets > Actions) or the Unity jobs
+# fail at license activation:
+#   UNITY_EMAIL     Unity ID email (Personal seat is fine)
+#   UNITY_PASSWORD  Unity ID password
+# game-ci checks out a Personal seat per run; Unity no longer offers
+# offline .ulf activation for Personal, so there is no license file.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# The test runner publishes results as check runs; without checks:write
+# the jobs fail after green suites ("Resource not accessible").
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  unity-version:
+    name: Read Unity version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: test (${{ matrix.testMode }})
+    runs-on: ubuntu-24.04
+    needs: unity-version
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        testMode: [editmode, playmode]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      - uses: game-ci/unity-test-runner@v4
+        id: tests
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: test-results/${{ matrix.testMode }}
+          checkName: ${{ matrix.testMode }} Test Results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.testMode }}
+          path: test-results/${{ matrix.testMode }}
+
+  build:
+    name: build macOS player
+    runs-on: ubuntu-24.04
+    needs: [unity-version, test]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      - uses: game-ci/unity-builder@v6
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          targetPlatform: StandaloneOSX
+          buildName: AxePath
+          buildsPath: build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AxePath-macOS
+          path: build/StandaloneOSX

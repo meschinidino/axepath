@@ -10,7 +10,8 @@ keeps every placement seeded, testable, and reviewable as a diff.
 
 ## Play it
 
-Open `Builds/AxePath.app` (built locally, not committed).
+Open `Builds/AxePath.app` (built locally, not committed), or grab
+`AxePath-macOS.zip` from the latest GitHub Release.
 
 | Input | Action |
 |---|---|
@@ -33,18 +34,30 @@ This builds `Builds/AxePath.app` from the open editor (a headless
 After building on macOS, strip quarantine once:
 `xattr -dr com.apple.quarantine Builds/AxePath.app`.
 
+## Releasing
+
+- Land work via feature branches + PRs; `main` is protected and needs
+  green CI. CI runs EditMode + PlayMode and builds the macOS player.
+- CI needs repo secrets (`UNITY_EMAIL`, `UNITY_PASSWORD` — your
+  Unity ID; game-ci checks out a Personal seat per run) or the Unity
+  jobs fail at activation.
+- Cut a release: move `[Unreleased]` to `[X.Y.Z]` in `CHANGELOG.md`,
+  echo the version into `VERSION`, merge, then
+  `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow
+  builds and attaches `AxePath-macOS.zip`.
+
 ## Test it
 
-- **EditMode (29):** pure game rules in `GameLogic.cs` — trust ladder,
-  dulling, wolf brain, saves — plus the axe swing pose curve. No
-  scene objects needed.
-- **PlayMode (29):** `SessionFlow` drives the real session end to end
+- **EditMode (40):** pure game rules in `GameLogic.cs` — trust ladder,
+  dulling, wolf brain, saves — plus the axe swing, shake, shudder,
+  and chip math pins. No scene objects needed.
+- **PlayMode (32):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
   death → reclaim); `WorldShots` asserts world structure and captures
   viewpoint screenshots to `Assets/Screenshots/` (gitignored, regenerable).
 
-Run either suite from the Unity Test Runner, or ask the agent bridge
-(`run_tests` / `get_test_job` over the MCP connection).
+Run either suite from the Unity Test Runner, or push/PR and let CI
+run both plus a macOS player build (`.github/workflows/ci.yml`).
 
 ## Layout
 
