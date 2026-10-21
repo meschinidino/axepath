@@ -48,8 +48,12 @@ jobs:
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
+      # Same OOM flake net as the build: shared runners SIGKILL (137)
+      # the compile spike on a bad day. Attempt 2 runs only if 1 fails;
+      # genuine failures fail twice and loudly below.
       - uses: game-ci/unity-test-runner@v4
-        id: tests
+        id: tests1
+        continue-on-error: true
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -58,6 +62,20 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
+      - uses: game-ci/unity-test-runner@v4
+        id: tests2
+        if: steps.tests1.outcome == 'failure'
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ needs.unity-version.outputs.version }}
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: test-results/${{ matrix.testMode }}
+          checkName: ${{ matrix.testMode }} Test Results
+      - name: Fail the job when both test attempts failed
+        if: steps.tests1.outcome == 'failure' && steps.tests2.outcome != 'success'
+        run: exit 1
       - uses: actions/upload-artifact@v7
         if: always()
         with:
