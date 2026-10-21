@@ -2,10 +2,10 @@
 #
 # Needs repo secrets (Settings > Secrets > Actions) or the Unity jobs
 # fail at license activation:
-#   UNITY_LICENSE   contents of an activated Unity_lic.ulf (Personal seat)
-#   UNITY_EMAIL     Unity ID email, for license checkout
-#   UNITY_PASSWORD  Unity ID password, for license checkout
-# See README "Releasing" for how to mint the .ulf.
+#   UNITY_EMAIL     Unity ID email (Personal seat is fine)
+#   UNITY_PASSWORD  Unity ID password
+# game-ci checks out a Personal seat per run; Unity no longer offers
+# offline .ulf activation for Personal, so there is no license file.
 name: CI
 
 on:
@@ -45,7 +45,6 @@ jobs:
       - uses: game-ci/unity-test-runner@v4
         id: tests
         env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
@@ -72,9 +71,8 @@ jobs:
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-
-      - uses: game-ci/unity-builder@v5
+      - uses: game-ci/unity-builder@v6
         env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:

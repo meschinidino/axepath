@@ -38,9 +38,9 @@ After building on macOS, strip quarantine once:
 
 - Land work via feature branches + PRs; `main` is protected and needs
   green CI. CI runs EditMode + PlayMode and builds the macOS player.
-- CI needs repo secrets (`UNITY_LICENSE`, `UNITY_EMAIL`,
-  `UNITY_PASSWORD` — a Personal seat activated per game-ci docs) or
-  the Unity jobs fail at activation.
+- CI needs repo secrets (`UNITY_EMAIL`, `UNITY_PASSWORD` — your
+  Unity ID; game-ci checks out a Personal seat per run) or the Unity
+  jobs fail at activation.
 - Cut a release: move `[Unreleased]` to `[X.Y.Z]` in `CHANGELOG.md`,
   echo the version into `VERSION`, merge, then
   `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow
