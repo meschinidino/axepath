@@ -27,7 +27,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
         run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
 
@@ -41,8 +41,8 @@ jobs:
       matrix:
         testMode: [editmode, playmode]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: Library
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
@@ -58,7 +58,7 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-${{ matrix.testMode }}
@@ -70,8 +70,8 @@ jobs:
     needs: [unity-version, test]
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: Library
           key: Library-${{ runner.os }}-${{ needs.unity-version.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
@@ -86,7 +86,7 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS
           path: build/StandaloneOSX

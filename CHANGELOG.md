@@ -5,6 +5,11 @@ releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 
 ## [Unreleased]
 
+### Fixed
+
+- CI actions bumped off deprecated Node 20 (checkout v7, cache v6,
+  upload-artifact v7, gh-release v3).
+
 ## [0.1.0] - 2026-10-21
 
 First numbered cut: the playable valley slice with the combat feel pass.
