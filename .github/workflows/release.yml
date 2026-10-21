@@ -1,0 +1,50 @@
+# Axe Path releases: tag vX.Y.Z (matching VERSION) to build the
+# macOS player and attach it to a GitHub Release.
+#
+# Cut a release:
+#   1. CHANGELOG entry under [Unreleased], then rename it to [X.Y.Z].
+#   2. Echo the version into VERSION, commit, merge to main.
+#   3. git tag vX.Y.Z && git push origin vX.Y.Z
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match VERSION
+        run: |
+          test "v$(tr -d ' \n' < VERSION)" = "${{ github.ref_name }}" \
+            || { echo "tag ${{ github.ref_name }} != v$(cat VERSION)"; exit 1; }
+      - id: unity
+        run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-
+      - uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: ${{ steps.unity.outputs.version }}
+          targetPlatform: StandaloneOSX
+          buildName: AxePath
+          buildsPath: build
+      - name: Zip the .app
+        run: cd build/StandaloneOSX && zip -r -y ../../AxePath-macOS.zip AxePath.app
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: AxePath-macOS.zip
+          generate_release_notes: true
