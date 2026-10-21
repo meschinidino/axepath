@@ -14,6 +14,9 @@ namespace AxePath
         public event Action OnBookClose;
         public event Action OnExport;
         public event Action OnFirstLock;
+        public event Action OnPauseResume;
+        public event Action OnPauseQuit;
+        public event Action<float> OnLookSens;
 
         private static Font uiFont;
         private static Color Orange = new Color(0.85f, 0.64f, 0.25f);
@@ -24,6 +27,9 @@ namespace AxePath
         private GameObject modalRoot;
         private GameObject deathRoot;
         private GameObject lockRoot;
+        private GameObject pauseRoot;
+        private Slider pauseSens;
+        private Text pauseSensVal;
         private GameObject dialogueBox;
         private Text dialogueName;
         private Text dialogueLine;
@@ -271,6 +277,7 @@ namespace AxePath
             BuildModal(C);
             BuildDeath(C);
             BuildLock(C);
+            BuildPause(C);
         }
 
         private void BuildTitle(Transform c)
@@ -406,6 +413,84 @@ namespace AxePath
             lockRoot.SetActive(false);
         }
 
+        private static Slider MkSlider(Transform parent, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var bg = go.AddComponent<Image>();
+            bg.color = new Color(0.13f, 0.16f, 0.24f, 0.95f);
+            var slider = go.AddComponent<Slider>();
+            slider.direction = Slider.Direction.LeftToRight;
+            // A focused slider eats arrow keys, which are also move keys:
+            // no keyboard navigation, mouse only.
+            slider.navigation = new Navigation { mode = Navigation.Mode.None };
+            var fillGo = new GameObject("Fill");
+            fillGo.transform.SetParent(go.transform, false);
+            var fillImg = fillGo.AddComponent<Image>();
+            fillImg.color = Orange;
+            fillImg.raycastTarget = false;
+            var fillRt = fillGo.GetComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = Vector2.one;
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+            slider.fillRect = fillRt;
+            var handleGo = new GameObject("Handle");
+            handleGo.transform.SetParent(go.transform, false);
+            var handleImg = handleGo.AddComponent<Image>();
+            handleImg.color = Color.white;
+            handleImg.raycastTarget = false;
+            var handleRt = handleGo.GetComponent<RectTransform>();
+            handleRt.anchorMin = new Vector2(0f, 0.5f);
+            handleRt.anchorMax = new Vector2(0f, 0.5f);
+            handleRt.pivot = new Vector2(0.5f, 0.5f);
+            handleRt.sizeDelta = new Vector2(20f, 36f);
+            slider.handleRect = handleRt;
+            return slider;
+        }
+
+        private void BuildPause(Transform c)
+        {
+            pauseRoot = MkPanel(c, "Pause", 0.92f);
+            Place(pauseRoot.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 560f, 440f);
+            var head = MkText(pauseRoot.transform, "Head", 34, TextAnchor.MiddleCenter);
+            Place(head.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 520f, 44f);
+            head.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -14f);
+            head.text = Lines.PauseHead;
+            head.color = Orange;
+            var sensLabel = MkText(pauseRoot.transform, "SensLabel", 18, TextAnchor.MiddleCenter);
+            Place(sensLabel.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 480f, 30f);
+            sensLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -72f);
+            sensLabel.text = Lines.PauseSensitivity;
+            pauseSens = MkSlider(pauseRoot.transform, "Sens");
+            Place(pauseSens.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 440f, 28f);
+            pauseSens.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -112f);
+            pauseSens.minValue = PlayerController.LookSensMin;
+            pauseSens.maxValue = PlayerController.LookSensMax;
+            pauseSensVal = MkText(pauseRoot.transform, "SensVal", 16, TextAnchor.MiddleCenter);
+            Place(pauseSensVal.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 200f, 26f);
+            pauseSensVal.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -148f);
+            pauseSensVal.color = new Color(1f, 1f, 1f, 0.75f);
+            pauseSens.onValueChanged.AddListener((float v) => {
+                pauseSensVal.text = SensPct(v);
+                if (OnLookSens != null) OnLookSens(v);
+            });
+            var resume = MkButton(pauseRoot.transform, "Resume", Lines.PauseResume, 20);
+            Place(resume.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 260f, 46f);
+            resume.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 116f);
+            resume.onClick.AddListener(() => { if (OnPauseResume != null) OnPauseResume(); });
+            var quit = MkButton(pauseRoot.transform, "Quit", Lines.PauseQuit, 18);
+            Place(quit.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 260f, 46f);
+            quit.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 56f);
+            quit.onClick.AddListener(() => { if (OnPauseQuit != null) OnPauseQuit(); });
+            pauseRoot.SetActive(false);
+        }
+
+        private static string SensPct(float v)
+        {
+            return Mathf.RoundToInt(v / PlayerController.DefaultLookSens * 100f) + "%";
+        }
+
         private static Texture2D RadialTexture()
         {
             int n = 256;
@@ -450,6 +535,7 @@ namespace AxePath
             modalRoot.SetActive(false);
             deathRoot.SetActive(false);
             lockRoot.SetActive(false);
+            pauseRoot.SetActive(false);
             modalOkFn = null;
             modalCancelFn = null;
         }
@@ -488,6 +574,20 @@ namespace AxePath
 
         public void ShowTitle(bool show) { titleRoot.SetActive(show); }
         public void ShowHud(bool show) { hudRoot.SetActive(show); }
+
+        public void ShowPause(bool show)
+        {
+            pauseRoot.SetActive(show);
+            if (!show && EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        public bool IsPauseOpen() { return pauseRoot.activeSelf; }
+
+        public void SetLookSens(float v)
+        {
+            pauseSens.SetValueWithoutNotify(v);
+            pauseSensVal.text = SensPct(v);
+        }
 
         public void SetEdge(int step, bool have)
         {
@@ -531,7 +631,7 @@ namespace AxePath
         public bool PromptHeld() { return Time.realtimeSinceStartup < promptHoldUntil; }
         public string PromptText() { return promptText.transform.parent.gameObject.activeSelf ? promptText.text : ""; }
 
-        public void FlashCross() { crossUntil = Time.realtimeSinceStartup + 0.16f; }
+        public void FlashCross(float secs = 0.16f) { crossUntil = Time.realtimeSinceStartup + secs; }
 
         public void SetBanner(string text)
         {

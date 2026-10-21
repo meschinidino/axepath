@@ -13,6 +13,7 @@ namespace AxePath
         public float knockT;
         public Vec2 knockDir;
         public bool flashed;
+        public float deadT;
     }
 
     public class WolfView : MonoBehaviour
@@ -68,6 +69,10 @@ namespace AxePath
                 root.transform.localPosition = rp;
                 root.transform.localScale = Vector3.one * (1f - punch * 0.14f);
             }
+            else if (brain.alive && brain.state == "windup")
+            {
+                root.transform.localScale = new Vector3(1.06f, 0.8f, 1.06f);
+            }
             else
             {
                 root.transform.localScale = Vector3.one;
@@ -84,20 +89,30 @@ namespace AxePath
                 foreach (var m in furMats) m.SetColor("_EmissionColor", Color.black);
                 fx.flashed = false;
             }
-            float fierce = brain.state == "chase" ? 1.35f : brain.state == "warn" ? 1.15f : 1f;
-            var eyeColor = MeshUtil.C(brain.state == "chase" ? 0xff3a1au : 0xff8a3au);
+            float fierce = !brain.alive ? 1f : brain.state == "windup" ? 1.6f : brain.state == "chase" ? 1.35f : brain.state == "warn" ? 1.15f : 1f;
+            var eyeColor = MeshUtil.C(!brain.alive ? 0x241a1c : brain.state == "windup" ? 0xff6a2a : brain.state == "chase" ? 0xff3a1au : 0xff8a3au);
             for (int i = 0; i < eyes.Count; i++)
             {
                 eyes[i].transform.localScale = Vector3.one * 0.1f * fierce;
                 eyeMats[i].color = eyeColor;
             }
-            if (brain.state == "chase" || brain.state == "warn")
+            if (brain.alive && (brain.state == "chase" || brain.state == "warn" || brain.state == "windup"))
             {
                 FaceToward(root.transform, brain.pos.x, brain.pos.z, playerPos.x, playerPos.z, dt, 6f);
             }
-            var bp = root.transform.localPosition;
-            bp.y = WorldBuilder.GroundH(bp.x, bp.z) + Mathf.Abs(Mathf.Sin(t * (brain.state == "chase" ? 10f : 3f))) * 0.06f;
-            root.transform.localPosition = bp;
+            if (!brain.alive)
+            {
+                fx.deadT += dt;
+                float tilt = Mathf.Min(1f, fx.deadT / 0.35f);
+                float curY = root.transform.localRotation.eulerAngles.y;
+                root.transform.localRotation = Quaternion.Euler(0f, curY, 0f) * Quaternion.Euler(0f, 0f, tilt * 80f);
+            }
+            if (brain.alive && brain.state != "windup")
+            {
+                var bp = root.transform.localPosition;
+                bp.y = WorldBuilder.GroundH(bp.x, bp.z) + Mathf.Abs(Mathf.Sin(t * (brain.state == "chase" ? 10f : 3f))) * 0.06f;
+                root.transform.localPosition = bp;
+            }
         }
 
         public static void FaceToward(Transform tr, float fromX, float fromZ, float toX, float toZ, float dt, float rate)

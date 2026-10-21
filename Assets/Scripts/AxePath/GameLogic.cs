@@ -23,11 +23,28 @@ namespace AxePath
         public const int WolfHitsToKill = 3;
         public const float WolfChaseSpeed = 4.2f;
         public const float WolfAttackRange = 1.7f;
+        public const float WolfWindupSecs = 0.45f;
+        public const float WolfLungeRange = 2.6f;
+        public const float ChopStopSecs = 0.045f;
+        public const float ChopShake = 0.35f;
+        public const float TreeShudderSecs = 0.4f;
+        public const float TreeShudderMag = 0.045f;
+        public const float ChipGravity = 14f;
+        public const float ChipLifeSecs = 1.1f;
         public const float AxeReach = 2.6f;
         public const float WolfHitSecs = 0.35f;
         public const float WolfFlashSecs = 0.22f;
         public const float WolfKnockSpeed = 3.2f;
         public const float WolfStaggerSecs = 0.9f;
+        public const float HitStopSecs = 0.06f;
+        public const float KillStopSecs = 0.12f;
+        public const float HurtStopSecs = 0.05f;
+        public const float HitShake = 0.55f;
+        public const float KillShake = 0.85f;
+        public const float HurtShake = 0.7f;
+        public const float ShakeMaxRad = 0.05f;
+        public const float TraumaDecaySecs = 0.4f;
+        public const float KillFlashSecs = 0.3f;
         public const float DullPerChop = 9f;
         public const float DullPerHit = 6f;
         public const float DullThresholdCivil = 40f;
@@ -71,6 +88,7 @@ namespace AxePath
             "Axe-mark facing the walker, not the wood. Follow the marks north and the smoke will find you.",
         };
         public const string GuideEast = "The mark faces east, not north, with three short strokes cut beneath it. Whoever left it wanted the next climber to turn aside here.";
+        public const string WaystoneRune = "A single rune cut deep and laid with gold, halfway up the stone. Beneath it, tally-marks count the climbers who came this way — most of them crossed through.";
 
         // HUD chrome (Hud.cs). Byte-identical centralization; no rewording.
         public const string HudHealth = "health";
@@ -88,6 +106,10 @@ namespace AxePath
         public const string ModalCancel = "Cancel";
         public const string DeathHead = "THE FOREST KEEPS YOU";
         public const string DeathWake = "Wake as the next nobody";
+        public const string PauseHead = "PAUSED";
+        public const string PauseResume = "Resume (Esc)";
+        public const string PauseSensitivity = "Mouse sensitivity";
+        public const string PauseQuit = "Save and quit to title";
         public const string LockHint = "Click to look around";
         public const string SlotPrefix = "Slot ";
         public const string SlotEmpty = " — empty, begin as a nobody";
@@ -106,6 +128,7 @@ namespace AxePath
         public const string PromptCairn = "Reclaim your axe (E)";
         public const string PromptBlaze = "Look at the mark (E)";
         public const string PromptGuide = "Look at the weathered mark (E)";
+        public const string PromptWaystone = "Read the rune (E)";
         public const string YouAxeHeavy = "Heavier than it looks. The yard boss will miss it; the forest will test it.";
         public const string YouAxeYours = "Yours now, and already in your hand. Click to swing — the trees will teach your arms.";
         public const string BookTitle = "Route sketch";
@@ -167,6 +190,8 @@ namespace AxePath
         public float wolfWarnSecs = Tuning.WolfWarnSecs;
         public float wolfLeash = Tuning.WolfLeash;
         public float wolfAttackRange = Tuning.WolfAttackRange;
+        public float wolfWindupSecs = Tuning.WolfWindupSecs;
+        public float wolfLungeRange = Tuning.WolfLungeRange;
         public static TuningSet Default() { return new TuningSet(); }
     }
 
@@ -336,6 +361,7 @@ namespace AxePath
         public Vec2 den;
         public string state;
         public float warnT;
+        public float windupT;
         public bool alive;
     }
 
@@ -678,11 +704,23 @@ namespace AxePath
                 }
                 if (dPlayer <= t.wolfAttackRange)
                 {
-                    res.events.Add("attack");
+                    wolf.state = "windup";
+                    wolf.windupT = t.wolfWindupSecs;
+                    res.events.Add("windup");
                     return res;
                 }
                 res.hasMove = true;
                 res.move = DirTo(wolf.pos, px, pz);
+                return res;
+            }
+            if (wolf.state == "windup")
+            {
+                // Committed lunge: plants its feet, then leaps. Step past
+                // lunge range before it lands and it snaps at empty air.
+                wolf.windupT -= dt;
+                if (wolf.windupT > 0f) return res;
+                wolf.state = "chase";
+                res.events.Add(dPlayer <= t.wolfLungeRange ? "attack" : "whiff");
                 return res;
             }
             if (wolf.state == "return")

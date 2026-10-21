@@ -46,9 +46,26 @@ namespace AxePath
         public WolfView view;
     }
 
+    public class TreeShake
+    {
+        public Transform tr;
+        public float t;
+        public Quaternion baseRot;
+    }
+
+    public class Chip
+    {
+        public GameObject go;
+        public Vector3 vel;
+        public float life;
+        public Vector3 spin;
+    }
+
     public class GameSession : MonoBehaviour
     {
-        public enum State { Title, Play }
+        public enum State { Title, Play, Paused }
+
+        public const string LookSensPrefKey = "axepath.looksens";
 
         public State CurrentState { get; private set; }
         public WorldState W { get; private set; }
@@ -63,6 +80,14 @@ namespace AxePath
         private NpcView npcView;
         private Saver saver;
         private float wolfCooldown;
+        private float snapCooldown;
+        private float hitStop;
+        public float HitStop { get { return hitStop; } }
+        private readonly List<TreeShake> treeShakes = new List<TreeShake>();
+        private readonly List<Chip> chips = new List<Chip>();
+        private Transform chipRoot;
+        public int ChipCount { get { return chips.Count; } }
+        public int TreeShakeCount { get { return treeShakes.Count; } }
         private int slot = 1;
         private DialogueState dialogue;
         private bool bookOpen;
@@ -105,6 +130,10 @@ namespace AxePath
             Hud.OnBookClose += () => { audio.PlayClick(); bookOpen = false; Hud.CloseBook(); };
             Hud.OnExport += () => Export();
             Hud.OnFirstLock += () => { audio.PlayClick(); Hud.ShowFirstLock(false); LockCursor(); };
+            Hud.OnPauseResume += () => { if (CurrentState == State.Paused) Resume(); };
+            Hud.OnPauseQuit += () => { if (CurrentState == State.Paused) ToTitle(); };
+            Hud.OnLookSens += SetLookSens;
+            LoadLookSens();
             CurrentState = State.Title;
             Hud.RenderSlots((s) => saver.Describe(s), (s, info) => PickSlotWith(s, info));
             Hud.ShowTitle(true);
@@ -149,6 +178,7 @@ namespace AxePath
             Player.Respawn(new Vector3(world.spots.spawn.x, 0f, world.spots.spawn.z));
             ResetPack();
             wolfCooldown = 0f;
+            ClearChopFx();
             lostT = 0f;
             howlT = 12f;
             visitedYard = false;
@@ -314,7 +344,11 @@ namespace AxePath
             {
                 cands.Add(new InteractTarget { id = "blaze", bi = i, x = refs.blazePos[i].x, z = refs.blazePos[i].z, label = Lines.PromptBlaze });
             }
-            cands.Add(new InteractTarget { id = "guide", x = refs.guidePos.x, z = refs.guidePos.z, label = Lines.PromptGuide });
+            // The mark sits inside its wall corner's disc, so the default
+            // 3.4 reach can never land from a walkable spot: extended like
+            // the ironwood log's. Closest approach is ~2u off the edge.
+            cands.Add(new InteractTarget { id = "guide", x = refs.guidePos.x, z = refs.guidePos.z, label = Lines.PromptGuide, reach = 4.5f });
+            cands.Add(new InteractTarget { id = "waystone", x = refs.waystonePos.x, z = refs.waystonePos.z, label = Lines.PromptWaystone });
             InteractTarget best = null;
             float bestD = float.MaxValue;
             foreach (var c in cands)
@@ -424,6 +458,10 @@ namespace AxePath
             {
                 SayOne("You", Lines.GuideEast);
             }
+            if (t.id == "waystone")
+            {
+                SayOne("You", Lines.WaystoneRune);
+            }
         }
 
         private Circle? NearestTree(float maxD)
@@ -447,6 +485,141 @@ namespace AxePath
             return best;
         }
 
+        // Shudder angle as a pure function of elapsed t: a decaying
+        // wobble, silent at t=0 and gone past dur. EditMode-tested.
+        public static float ShudderAngle(float t, float dur, float mag)
+        {
+            if (t <= 0f || t >= dur) return 0f;
+            return mag * (1f - t / dur) * Mathf.Sin(t * 43f);
+        }
+
+        // Chip flight step: ballistic with linear drag. EditMode-tested.
+        public static void ChipStep(ref Vector3 pos, ref Vector3 vel, float dt, float gravity)
+        {
+            vel.y -= gravity * dt;
+            vel *= 1f - Mathf.Min(0.9f, 1.8f * dt);
+            pos += vel * dt;
+        }
+
+        private void BurstChips(Circle c, Vec2 from)
+        {
+            if (chips.Count > 48) return;
+            if (chipRoot == null)
+            {
+                var g = new GameObject("Chips");
+                g.transform.SetParent(world.root.transform, false);
+                g.transform.localPosition = Vector3.zero;
+                chipRoot = g.transform;
+            }
+            float gy = WorldBuilder.GroundH(c.x, c.z);
+            var away = new Vector3(c.x - from.x, 0f, c.z - from.z);
+            if (away.sqrMagnitude < 0.01f)
+            {
+                var f = Player.Facing();
+                away = new Vector3(f.x, 0f, f.z);
+            }
+            away.Normalize();
+            for (int i = 0; i < 5; i++)
+            {
+                float s = 0.05f + UnityEngine.Random.value * 0.05f;
+                var go = MeshUtil.Box(chipRoot, "Chip", s, s * 0.7f, s, 0x7a5230, c.x, gy + 1.3f, c.z);
+                Destroy(go.GetComponent<Collider>());
+                float sp = 2f + UnityEngine.Random.value * 2.5f;
+                var vel = away * sp + new Vector3(
+                    (UnityEngine.Random.value - 0.5f) * 2.4f,
+                    2.5f + UnityEngine.Random.value * 2f,
+                    (UnityEngine.Random.value - 0.5f) * 2.4f);
+                var spin = new Vector3(
+                    (UnityEngine.Random.value - 0.5f) * 720f,
+                    (UnityEngine.Random.value - 0.5f) * 720f,
+                    (UnityEngine.Random.value - 0.5f) * 720f);
+                chips.Add(new Chip { go = go, vel = vel, life = Tuning.ChipLifeSecs, spin = spin });
+            }
+        }
+
+        private void ShakeTree(Circle c)
+        {
+            var tr = TreeAt(c.x, c.z);
+            if (tr == null) return;
+            foreach (var sh in treeShakes) if (sh.tr == tr) return;
+            treeShakes.Add(new TreeShake { tr = tr, t = 0f, baseRot = tr.localRotation });
+        }
+
+        private Transform TreeAt(float x, float z)
+        {
+            Transform best = null;
+            float bestD = 1.2f;
+            var forest = world.root.transform.Find("Forest");
+            if (forest != null)
+            {
+                for (int i = 0; i < forest.childCount; i++)
+                {
+                    var ch = forest.GetChild(i);
+                    if (ch.name != "Tree") continue;
+                    float d = Mathf.Sqrt((ch.localPosition.x - x) * (ch.localPosition.x - x) + (ch.localPosition.z - z) * (ch.localPosition.z - z));
+                    if (d < bestD) { bestD = d; best = ch; }
+                }
+            }
+            for (int i = 0; i < world.root.transform.childCount; i++)
+            {
+                var ch = world.root.transform.GetChild(i);
+                if (ch.name != "LandmarkPine") continue;
+                float d = Mathf.Sqrt((ch.localPosition.x - x) * (ch.localPosition.x - x) + (ch.localPosition.z - z) * (ch.localPosition.z - z));
+                if (d < bestD) { bestD = d; best = ch; }
+            }
+            return best;
+        }
+
+        private void TickChips(float dt)
+        {
+            for (int i = chips.Count - 1; i >= 0; i--)
+            {
+                var c = chips[i];
+                c.life -= dt;
+                if (c.life <= 0f || c.go == null)
+                {
+                    if (c.go != null) Destroy(c.go);
+                    chips.RemoveAt(i);
+                    continue;
+                }
+                var pos = c.go.transform.localPosition;
+                ChipStep(ref pos, ref c.vel, dt, Tuning.ChipGravity);
+                float gy = WorldBuilder.GroundH(pos.x, pos.z) + 0.03f;
+                if (pos.y < gy) { pos.y = gy; c.vel *= 0.4f; c.vel.y = 0f; }
+                c.go.transform.localPosition = pos;
+                c.go.transform.Rotate(c.spin.x * dt, c.spin.y * dt, c.spin.z * dt);
+            }
+        }
+
+        private void TickTreeShakes(float dt)
+        {
+            for (int i = treeShakes.Count - 1; i >= 0; i--)
+            {
+                var sh = treeShakes[i];
+                if (sh.tr == null) { treeShakes.RemoveAt(i); continue; }
+                sh.t += dt;
+                if (sh.t >= Tuning.TreeShudderSecs)
+                {
+                    sh.tr.localRotation = sh.baseRot;
+                    treeShakes.RemoveAt(i);
+                    continue;
+                }
+                float ax = ShudderAngle(sh.t, Tuning.TreeShudderSecs, Tuning.TreeShudderMag);
+                float az = ShudderAngle(sh.t + 0.13f, Tuning.TreeShudderSecs, Tuning.TreeShudderMag);
+                sh.tr.localRotation = sh.baseRot * Quaternion.Euler(ax * 57.29578f, 0f, az * 57.29578f);
+            }
+        }
+
+        private void ClearChopFx()
+        {
+            foreach (var c in chips) if (c.go != null) Destroy(c.go);
+            chips.Clear();
+            if (chipRoot != null) { Destroy(chipRoot.gameObject); chipRoot = null; }
+            foreach (var sh in treeShakes) if (sh.tr != null) sh.tr.localRotation = sh.baseRot;
+            treeShakes.Clear();
+            hitStop = 0f;
+        }
+
         private bool Ahead(float x, float z, float range)
         {
             var p = Player.EyeXZ();
@@ -466,6 +639,7 @@ namespace AxePath
                 return;
             }
             if (!Player.TrySwing(W.skill.swingMs * 0.8f)) return;
+            audio.PlayWhoosh();
             var p = Player.EyeXZ();
             WolfUnit target = null;
             float targetD = float.MaxValue;
@@ -481,6 +655,8 @@ namespace AxePath
                 audio.PlayHit();
                 audio.PlayYelp();
                 Hud.FlashCross();
+                hitStop = Tuning.HitStopSecs;
+                Player.Kick(Tuning.HitShake);
                 target.hp -= 1;
                 target.fx.hitT = Tuning.WolfHitSecs;
                 target.fx.flashT = Tuning.WolfFlashSecs;
@@ -499,6 +675,10 @@ namespace AxePath
                     Logic.UseAxe(W, "hit");
                     RefreshHud();
                     Hud.SetPrompt(Lines.PromptWolfStill, 2.2f);
+                    hitStop = Tuning.KillStopSecs;
+                    Player.Kick(Tuning.KillShake);
+                    audio.PlayKill();
+                    Hud.FlashCross(Tuning.KillFlashSecs);
                 }
                 else
                 {
@@ -538,11 +718,16 @@ namespace AxePath
                 return;
             }
             if (!W.dwarfAlive) return;
-            if (NearestTree(Tuning.AxeReach).HasValue)
+            var tree = NearestTree(Tuning.AxeReach);
+            if (tree.HasValue)
             {
                 Logic.UseAxe(W, "chop");
                 audio.PlayThunk(W.axe.dullness / 100f);
                 Hud.FlashCross();
+                hitStop = Tuning.ChopStopSecs;
+                Player.Kick(Tuning.ChopShake);
+                BurstChips(tree.Value, p);
+                ShakeTree(tree.Value);
                 RefreshHud();
                 Hud.SetPrompt(Lines.PromptChips, 1.6f);
                 return;
@@ -614,6 +799,41 @@ namespace AxePath
             else Resume();
         }
 
+        // Esc from live play lands here, not the title: the sim freezes
+        // (Paused() covers any non-Play state) and the overlay offers
+        // resume, sensitivity, and quit-to-title. No autosave: pause is
+        // transient, quitting to title saves.
+        public void Pause()
+        {
+            audio.PlayClick();
+            CurrentState = State.Paused;
+            UnlockCursor();
+            audio.StopWind();
+            Hud.CloseAllScreens();
+            Hud.ShowHud(false);
+            Hud.ShowPause(true);
+        }
+
+        public void HandlePlayEscape()
+        {
+            if (bookOpen) { bookOpen = false; Hud.CloseBook(); }
+            else if (dialogue == null && !Hud.IsModalOpen() && !Hud.IsDeathOpen()) Pause();
+        }
+
+        private void LoadLookSens()
+        {
+            float v = PlayerPrefs.GetFloat(LookSensPrefKey, PlayerController.DefaultLookSens);
+            PlayerController.LookSens = Mathf.Clamp(v, PlayerController.LookSensMin, PlayerController.LookSensMax);
+            Hud.SetLookSens(PlayerController.LookSens);
+        }
+
+        private void SetLookSens(float v)
+        {
+            PlayerController.LookSens = Mathf.Clamp(v, PlayerController.LookSensMin, PlayerController.LookSensMax);
+            PlayerPrefs.SetFloat(LookSensPrefKey, PlayerController.LookSens);
+            PlayerPrefs.Save();
+        }
+
         public void Wake()
         {
             Hud.CloseDeath();
@@ -622,6 +842,7 @@ namespace AxePath
             Player.Respawn(new Vector3(world.spots.spawn.x, 0f, world.spots.spawn.z));
             ResetPack();
             wolfCooldown = 0f;
+            ClearChopFx();
             lostT = 0f;
             howlT = 12f;
             visitedYard = false;
@@ -654,12 +875,13 @@ namespace AxePath
                 if (Input.GetKeyDown(KeyCode.Escape)) HandleTitleEscape();
                 return;
             }
-            if (CurrentState != State.Play) return;
-            if (Input.GetKeyDown(KeyCode.Escape))
+            if (CurrentState == State.Paused)
             {
-                if (bookOpen) { bookOpen = false; Hud.CloseBook(); }
-                else if (dialogue == null && !Hud.IsModalOpen() && !Hud.IsDeathOpen()) ToTitle();
+                if (Input.GetKeyDown(KeyCode.Escape)) Resume();
+                return;
             }
+            if (CurrentState != State.Play) return;
+            if (Input.GetKeyDown(KeyCode.Escape)) HandlePlayEscape();
             if (Input.GetKeyDown(KeyCode.E))
             {
                 if (dialogue != null) AdvanceDialogue();
@@ -696,6 +918,13 @@ namespace AxePath
             float dt = Mathf.Min(0.05f, Time.deltaTime);
             playT += dt;
             Player.Tick(dt);
+            // Hit-stop: your motion keeps recovering (swing cadence stays
+            // pinned) while the world holds its breath for a few frames.
+            if (hitStop > 0f)
+            {
+                hitStop = Mathf.Max(0f, hitStop - dt);
+                return;
+            }
             var p = Player.EyeXZ();
             var spots = world.spots;
             if (!visitedYard && Gdist(p.x, p.z, spots.yard.x, spots.yard.z) < 6f)
@@ -729,6 +958,7 @@ namespace AxePath
             else lostT = 0f;
 
             wolfCooldown = Mathf.Max(0f, wolfCooldown - dt);
+            snapCooldown = Mathf.Max(0f, snapCooldown - dt);
             // The pack shares one attack cooldown: three wolves cornering
             // you still wound at the lone-wolf rate.
             foreach (var u in Wolves)
@@ -742,17 +972,29 @@ namespace AxePath
                         Hud.SetPrompt(Lines.PromptGrowl, 2.5f);
                     }
                     else if (ev == "chase") audio.PlayChase();
+                    else if (ev == "windup") audio.PlaySnarl();
+                    else if (ev == "whiff") audio.PlaySnap();
                     else if (ev == "attack" && wolfCooldown <= 0f)
                     {
                         wolfCooldown = 1.2f;
-                        audio.PlayHit();
+                        audio.PlayHurt();
                         Hud.HurtFlash();
+                        hitStop = Tuning.HurtStopSecs;
+                        Player.Kick(Tuning.HurtShake);
                         if (Logic.DamagePlayer(W, 1))
                         {
                             Die();
                             return;
                         }
                         RefreshHud();
+                    }
+                    else if (ev == "attack" && snapCooldown <= 0f)
+                    {
+                        // Gated lunge (staggered or pack cooldown): the teeth
+                        // still snap, so the crouch never reads as a broken
+                        // hit. Shared cooldown keeps the pack from chattering.
+                        snapCooldown = 0.3f;
+                        audio.PlaySnap();
                     }
                 }
                 if (wres.hasMove)
@@ -794,6 +1036,8 @@ namespace AxePath
 
             foreach (var u in Wolves) u.view.Tick(dt, playT, Player.transform.position);
             npcView.Tick(dt, playT, Player.transform.position, W.dwarfAlive);
+            TickChips(dt);
+            TickTreeShakes(dt);
         }
     }
 }

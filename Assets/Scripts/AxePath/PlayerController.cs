@@ -10,7 +10,10 @@ namespace AxePath
         public const float WalkSpeed = 4.2f;
         public const float RunSpeed = 7.2f;
         public const float EyeHeight = 1.65f;
-        public const float LookSens = 0.004f;
+        public const float DefaultLookSens = 0.004f;
+        public const float LookSensMin = 0.001f;
+        public const float LookSensMax = 0.008f;
+        public static float LookSens = DefaultLookSens;
 
         public Camera Cam { get; private set; }
         public float yaw;
@@ -21,6 +24,9 @@ namespace AxePath
         private GameObject axeView;
         private Material edgeMat;
         private float swingT;
+        private float trauma;
+        private float shakeT;
+        public float Trauma { get { return trauma; } }
         private float swingDur = 0.4f;
         private float bobT;
         private float stepAcc;
@@ -86,8 +92,27 @@ namespace AxePath
 
         private void ApplyLook()
         {
-            transform.rotation = Quaternion.Euler(0f, 180f + yaw * 57.29578f, 0f);
-            if (Cam != null) Cam.transform.localRotation = Quaternion.Euler(pitch * 57.29578f, 0f, 0f);
+            // Shake offsets the lens, never yaw/pitch: aim returns exactly.
+            float shYaw = ShakeOffset(trauma, shakeT) * Tuning.ShakeMaxRad;
+            float shPitch = ShakeOffset(trauma, shakeT + 7.3f) * Tuning.ShakeMaxRad;
+            transform.rotation = Quaternion.Euler(0f, 180f + (yaw + shYaw) * 57.29578f, 0f);
+            if (Cam != null) Cam.transform.localRotation = Quaternion.Euler((pitch + shPitch) * 57.29578f, 0f, 0f);
+        }
+
+        public void Kick(float amount) { trauma = Mathf.Min(1f, trauma + amount); }
+
+        // Impact shake as pure functions: deterministic layered sines in
+        // [-1,1], scaled by trauma squared so small kicks fade fast, and a
+        // linear trauma decay. EditMode-tested.
+        public static float ShakeOffset(float trauma, float t)
+        {
+            float n = Mathf.Sin(t * 39.7f) * 0.6f + Mathf.Sin(t * 23.3f + 1.7f) * 0.4f;
+            return trauma * trauma * n;
+        }
+
+        public static float TraumaAfter(float trauma, float dt, float decaySecs)
+        {
+            return Mathf.Max(0f, trauma - dt / decaySecs);
         }
 
         public void Tick(float dt)
@@ -153,13 +178,15 @@ namespace AxePath
             {
                 swingT -= dt;
                 float k = 1f - Mathf.Max(0f, swingT) / swingDur;
-                float arc = Mathf.Sin(k * Mathf.PI);
+                float rx, zz;
+                SwingPose(k, out rx, out zz);
                 // Chop travels down-forward so the edge leads into the target.
                 // (Negative X swung the head back toward the face: the old
-                // "hits with the bottom" read.)
-                axeView.transform.localRotation = Quaternion.Euler(10f + arc * 62f, -24f, 14f);
+                // "hits with the bottom" read. The windup dip below is a
+                // deliberate pull-back, not that bug.)
+                axeView.transform.localRotation = Quaternion.Euler(rx, -24f, 14f);
                 var ap = axeView.transform.localPosition;
-                ap.z = 0.55f + arc * 0.34f;
+                ap.z = zz;
                 axeView.transform.localPosition = ap;
             }
             else
@@ -169,6 +196,10 @@ namespace AxePath
                 ap.z = 0.55f;
                 axeView.transform.localPosition = ap;
             }
+
+            shakeT += dt;
+            trauma = TraumaAfter(trauma, dt, Tuning.TraumaDecaySecs);
+            ApplyLook();
         }
 
         public bool TrySwing(float swingMs)
@@ -177,6 +208,35 @@ namespace AxePath
             swingDur = swingMs / 1000f;
             swingT = swingDur;
             return true;
+        }
+
+        // Swing pose as a pure function of progress k in [0,1]: windup
+        // pull-back to k=0.28, accelerating chop to contact at k=0.62,
+        // settle back to rest at k=1. Fractions of swingDur, so skill
+        // speed-ups scale the beats without retiming them. EditMode-tested.
+        public static void SwingPose(float k, out float rotX, out float z)
+        {
+            if (k <= 0.28f)
+            {
+                float t = k / 0.28f;
+                float e = t * t * (3f - 2f * t);
+                rotX = 10f - 36f * e;
+                z = 0.55f - 0.15f * e;
+            }
+            else if (k <= 0.62f)
+            {
+                float t = (k - 0.28f) / 0.34f;
+                float e = t * t * t;
+                rotX = -26f + 100f * e;
+                z = 0.40f + 0.49f * e;
+            }
+            else
+            {
+                float t = (k - 0.62f) / 0.38f;
+                float e = 1f - (1f - t) * (1f - t);
+                rotX = 74f - 64f * e;
+                z = 0.89f - 0.34f * e;
+            }
         }
 
         public void SetAxeEdge(int step, bool have)

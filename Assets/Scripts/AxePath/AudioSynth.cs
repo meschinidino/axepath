@@ -132,6 +132,7 @@ namespace AxePath
             float f = 220f - 120f * Mathf.Clamp01(dull01);
             Tone_(f, 0.12f, Triangle, 0.3f, f * 0.6f, 0f);
             Noise_(0.08f, 1200f, 0.12f);
+            if (dull01 < 0.25f) Noise_(0.05f, 2800f, 0.12f);
         }
 
         public void PlayHit()
@@ -144,6 +145,39 @@ namespace AxePath
         {
             Tone_(640f, 0.16f, Saw, 0.16f, 180f, 0f);
             Noise_(0.12f, 2400f, 0.1f);
+        }
+
+        public void PlayKill()
+        {
+            Tone_(140f, 0.25f, Square, 0.14f, 50f, 0f);
+            Tone_(70f, 0.3f, Sine, 0.2f, 40f, 0f);
+            Noise_(0.18f, 700f, 0.2f);
+        }
+
+        public void PlayHurt()
+        {
+            Tone_(220f, 0.2f, Saw, 0.12f, 110f, 0f);
+            Noise_(0.15f, 500f, 0.18f);
+        }
+
+        public void PlaySnarl()
+        {
+            Tone_(180f, 0.4f, Saw, 0.14f, 460f, 0f);
+            Noise_(0.35f, 900f, 0.08f);
+        }
+
+        public void PlaySnap()
+        {
+            Noise_(0.06f, 3200f, 0.22f);
+            Tone_(1100f, 0.05f, Square, 0.06f, 700f, 0f);
+        }
+
+        public void PlayWhoosh()
+        {
+            // Loud and long enough to survive the impact transient that
+            // fires on the same frame: the rising tail reads post-hit.
+            Noise_(0.22f, 1400f, 0.16f);
+            Tone_(320f, 0.2f, Sine, 0.12f, 900f, 0f);
         }
 
         public void PlayGrowl()

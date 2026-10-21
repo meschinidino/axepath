@@ -6,7 +6,7 @@ The full v1 loop is playable end to end in `Builds/AxePath.app`:
 spawn → axe → sketch → uphill forest → wolf → dwarf cold/civil/
 sharpening → ironwood → earned edge, with permadeath generations,
 title/death/save, HUD, synth audio, night sky, and mountain backdrop.
-26 EditMode + 24 PlayMode tests green; viewpoint screenshots verify
+40 EditMode + 32 PlayMode tests green; viewpoint screenshots verify
 every area each run.
 
 Systems are ~90%; content depth, feel, and art are ~50%.
@@ -26,8 +26,10 @@ Systems are ~90%; content depth, feel, and art are ~50%.
 3. **Feel and balance.** Chop/wolf-hit feedback juice, swing timing
    vs cooldown, wolf HP/hearing/leash numbers, prompt-hold timings.
    Playtest-driven, one variable at a time.
-4. **Small completions.** Pause overlay, volume/mute, save-slot
-   labels polish, boot loading indicator, desktop-only notice.
+4. **Small completions.** Pause overlay done early (Esc menu with
+   resume, sensitivity, quit-to-title); remaining: volume/mute,
+   save-slot labels polish, boot loading indicator, desktop-only
+   notice.
 5. **Art milestone** (starts when the loop plays twice with zero
    mechanics complaints). One focused pass, no mechanics changes:
    stylized low-poly pack in the WoW-classic register, engraved

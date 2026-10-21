@@ -18,7 +18,7 @@ Open `Builds/AxePath.app` (built locally, not committed).
 | Mouse | Look |
 | Left click | Swing the axe |
 | E | Interact (take, talk, read) |
-| Esc | Title / close panels |
+| Esc | Pause / close panels (Esc again resumes) |
 
 Fixed keys in v1, always shown on the title controls card.
 
@@ -35,9 +35,10 @@ After building on macOS, strip quarantine once:
 
 ## Test it
 
-- **EditMode (26):** pure game rules in `GameLogic.cs` — trust ladder,
-  dulling, wolf brain, saves. No Unity dependencies.
-- **PlayMode (24):** `SessionFlow` drives the real session end to end
+- **EditMode (29):** pure game rules in `GameLogic.cs` — trust ladder,
+  dulling, wolf brain, saves — plus the axe swing pose curve. No
+  scene objects needed.
+- **PlayMode (29):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
   death → reclaim); `WorldShots` asserts world structure and captures
   viewpoint screenshots to `Assets/Screenshots/` (gitignored, regenerable).

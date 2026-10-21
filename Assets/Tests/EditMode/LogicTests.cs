@@ -363,11 +363,49 @@ public class WolfBrainTests
         var wolf = Logic.CreateWolf(0f, 0f);
         wolf.state = "chase";
         var o = Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
+        CollectionAssert.AreEqual(new string[] { "windup" }, o.events);
+        Assert.AreEqual("windup", wolf.state);
+        o = Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.5f, null);
         CollectionAssert.AreEqual(new string[] { "attack" }, o.events);
+        Assert.AreEqual("chase", wolf.state);
         wolf.pos = new Vec2(0f, 200f);
         o = Logic.WolfStep(wolf, 0f, 200f, false, 1f, 0.1f, null);
         CollectionAssert.AreEqual(new string[] { "leash" }, o.events);
         Assert.AreEqual("return", wolf.state);
+    }
+
+    [Test]
+    public void WindupPlantsFeetAndStaysSilentMidTimer()
+    {
+        var wolf = Logic.CreateWolf(0f, 0f);
+        wolf.state = "chase";
+        Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
+        var o = Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
+        Assert.IsEmpty(o.events);
+        Assert.IsFalse(o.hasMove);
+        Assert.AreEqual("windup", wolf.state);
+    }
+
+    [Test]
+    public void WindupWhiffsPastLungeRange()
+    {
+        var wolf = Logic.CreateWolf(0f, 0f);
+        wolf.state = "chase";
+        Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
+        var o = Logic.WolfStep(wolf, 0f, 3f, false, 1f, 0.5f, null);
+        CollectionAssert.AreEqual(new string[] { "whiff" }, o.events);
+        Assert.AreEqual("chase", wolf.state);
+    }
+
+    [Test]
+    public void KillingDuringWindupCancelsTheBite()
+    {
+        var wolf = Logic.CreateWolf(0f, 0f);
+        wolf.state = "chase";
+        Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.1f, null);
+        wolf.alive = false;
+        var o = Logic.WolfStep(wolf, 0f, 1f, false, 1f, 0.5f, null);
+        Assert.IsEmpty(o.events);
     }
 
     [Test]

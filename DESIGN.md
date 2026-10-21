@@ -65,6 +65,8 @@ fireflies (lowlands + grove); current streaks texture the river.
   them is flavor that rewards attention, never a requirement.
 - **Guide mark** (gold, cave wall face): one doubled east-turn mark with
   tallies — the turnoff even the dwarf's line can't give you.
+- **Waystone rune** (gold, on the standing stone): one gilded rune with
+  tallied climbers beneath. Flavor for the attentive, never required.
 - **NPC lines**: librarian route, dwarf trust-gated lines. Short, locked
   per stage; walk >4.5u cancels dialogue.
 - **REWORK PENDING (playtest):** note text quality and mark placement
@@ -76,7 +78,8 @@ Crosshair dot (flashes on connected swings); health pips + 3-step
 edge meter bottom-left; hands strip (axe/sketch/log) bottom-right;
 context prompt bottom-center within reach (3.4u, log 5u). No compass,
 no minimap, no damage numbers. Title with 3 save slots + controls
-card; death screen with "wake as a new nobody"; dwarf-dead permanence
+card; pause overlay with resume, sensitivity slider, and quit to
+title; death screen with "wake as a new nobody"; dwarf-dead permanence
 note; session-only storage banner; strict save-import rejection modal.
 
 ## Feedback rules
@@ -84,6 +87,16 @@ note; session-only storage banner; strict save-import rejection modal.
 - Dullness reads in 3 channels: edge color chips, chop pitch drop,
   dwarf arrival line. No bare numbers for it.
 - Wolf hits read instantly: yelp + recoil + ember pulse + crosshair.
+  Every connect lands weight: hit-stop freeze, camera kick. Kills
+  confirm longer and lower; bites answer with their own sound.
+- Wolf lunges telegraph: plant-and-crouch windup with a rising snarl,
+  dodgeable by stepping out; a gated lunge snaps, never lands
+  silent; corpses keel over, eyes dead.
+- Chops land weight: trunk shudders, chips burst and settle, impact
+  stops and kicks lighter than flesh; sharp edges crack, dull thud.
+- Swings read in 3 beats: windup pull-back, accelerating chop,
+  settle to rest. Every swing whooshes; impact still resolves on
+  click, inside the instant-read rule above.
 - Trust shifts land inside the conversation that earns them.
 - No critical cue is audio-only: howls (15–60u from den) pair with a
   prompt; growls pair with eyes and posture.

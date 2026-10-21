@@ -51,6 +51,17 @@ public class WorldShots
         Assert.IsNotNull(GameObject.Find("Anvil"));
         Assert.IsNotNull(GameObject.Find("RiverWater"));
         Assert.IsNotNull(GameObject.Find("MillWheel"));
+        // The wheel must touch the mill's east wall (half-width 3,
+        // mirroring the Walls box) and sit over open water (ribbon
+        // half-width 5.5 around RiverX): a lone hut plus a wheel on
+        // sand reads as two stray objects.
+        var mill = GameObject.Find("Mill");
+        var wheel = GameObject.Find("MillWheel");
+        float wallFace = mill.transform.position.x + 3f;
+        float wheelFace = wheel.transform.position.x - 0.2f;
+        Assert.LessOrEqual(wheelFace - wallFace, 1f, "wheel detached from mill");
+        float wet = Mathf.Abs(wheel.transform.position.x - WorldBuilder.RiverX(wheel.transform.position.z));
+        Assert.LessOrEqual(wet, 5.5f, "wheel out of the channel");
         Assert.IsNotNull(GameObject.Find("Bridge"));
         Assert.IsNotNull(GameObject.Find("Chimney"));
         // The peak's skirt must clear the cave hall: rock starts
@@ -201,6 +212,79 @@ public class WorldShots
         Assert.AreEqual(WorldBuilder.BaseH(WorldBuilder.BridgeZ),
             WorldBuilder.GroundH(WorldBuilder.RiverX(WorldBuilder.BridgeZ), WorldBuilder.BridgeZ),
             "bridge grade");
+        // Cave-mouth corners: the side-wall front faces (z=-277, x
+        // 9..17 and -17..-9 per the CaveWall boxes in BuildCave) must
+        // be fully capped — no clip-through into the wall ends — while
+        // the guide mark on the east face (13,-276.4) stays walkably
+        // close. The corner discs once sat ON the face plane and
+        // jutted 4u into open ground: an invisible wall 3.85u short
+        // of the mark. Player radius is the 0.45 in
+        // PlayerController.Tick's push-out. Pure geometry on the real
+        // collider list: Tick reads live key input, undrivable here.
+        const float pRad = 0.45f;
+        var cols = Game.World.colliders;
+        // (a) The blocked interval on the x=13 approach line that
+        // holds the wall face must start within 2.5u of the mark.
+        // Merged to a fixed point: the face interval spans the corner
+        // plus wall discs, while blockers further south (rocks) must
+        // not count.
+        float faceZ = -277f;
+        float markZ = Game.World.refs.guidePos.z;
+        float lo = faceZ;
+        float hi = faceZ;
+        bool grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (var c in cols)
+            {
+                float dx = 13f - c.x;
+                float rr = c.r + pRad;
+                if (Mathf.Abs(dx) >= rr) continue;
+                float h = Mathf.Sqrt(rr * rr - dx * dx);
+                float a = c.z - h;
+                float b = c.z + h;
+                if (b < lo || a > hi) continue;
+                if (a < lo) { lo = a; grew = true; }
+                if (b > hi) { hi = b; grew = true; }
+            }
+        }
+        Assert.Greater(hi, faceZ, "face interval missing on x=13");
+        Assert.LessOrEqual(hi - markZ, 2.5f, "guide approach blocked at " + hi);
+        // (b) Every sample of both front faces, plus the seam between
+        // the corner and wall discs, sits inside some expanded
+        // collider: no clip-through at the wall ends.
+        float[,] capped = new float[,] {
+            {9f, faceZ}, {11f, faceZ}, {13f, faceZ}, {15f, faceZ}, {17f, faceZ},
+            {-9f, faceZ}, {-11f, faceZ}, {-13f, faceZ}, {-15f, faceZ}, {-17f, faceZ},
+            {13f, -281f}, {-13f, -281f},
+        };
+        for (int i = 0; i < capped.GetLength(0); i++)
+        {
+            float sx = capped[i, 0];
+            float sz = capped[i, 1];
+            bool hit = false;
+            foreach (var c in cols)
+            {
+                float dx = sx - c.x;
+                float dz = sz - c.z;
+                float rr = c.r + pRad;
+                if (dx * dx + dz * dz <= rr * rr) { hit = true; break; }
+            }
+            Assert.IsTrue(hit, "wall-end gap at " + sx + "," + sz);
+        }
+        // (c) The mouth itself stays open down the middle.
+        foreach (float mz in new float[] { -272f, -279f, -285f })
+        {
+            bool walkable = true;
+            foreach (var c in cols)
+            {
+                float dz = mz - c.z;
+                float rr = c.r + pRad;
+                if (c.x * c.x + dz * dz < rr * rr) { walkable = false; break; }
+            }
+            Assert.IsTrue(walkable, "mouth blocked at 0," + mz);
+        }
     }
 
     // Synchronous RenderTexture capture: ScreenCapture's end-of-frame write
@@ -242,6 +326,22 @@ public class WorldShots
         cam.transform.localPosition = new Vector3(0f, 1.65f, 0f);
         cam.transform.localRotation = Quaternion.identity;
         yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator MillWheelTurnsWithCurrent()
+    {
+        yield return null;
+        var wheel = GameObject.Find("MillWheel");
+        Assert.IsNotNull(wheel);
+        // The current runs +z; the dipped bottom must travel +z, which
+        // is a negative rotation about X. Relative quaternion over a
+        // realtime wait: immune to absolute angle and frame rate.
+        var q0 = wheel.transform.localRotation;
+        yield return new WaitForSeconds(0.3f);
+        var dq = Quaternion.Inverse(q0) * wheel.transform.localRotation;
+        Assert.Less(dq.x, 0f, "wheel bottom travels -z, against the +z current");
+        Assert.Greater(dq.x, -0.3f, "wheel spun impossibly far");
     }
 
     [UnityTest]

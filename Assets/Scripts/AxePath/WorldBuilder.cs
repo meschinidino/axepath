@@ -73,6 +73,7 @@ namespace AxePath
         public Vector3 ironLogPos = new Vector3(72f, 0f, -340f);
         public List<Circle> peaks = new List<Circle>();
         public Vec2 guidePos = new Vec2(13f, -276.4f);
+        public Vec2 waystonePos = new Vec2(-10f, -80f);
         public int treeCount;
         public int flowerCount;
         public int bushCount;
@@ -623,18 +624,22 @@ namespace AxePath
             ctx.Dirt(bx + 16f, BridgeZ, 6f);
 
             // Lumber mill on the west bank, wheel dipping in the channel.
+            // The wheel must sit over open water (ribbon half-width 5.5
+            // around RiverX) AND touch the east wall: at x=88 the wheel
+            // stood on sand 9u from the building, reading as two lone
+            // objects. Dirt shrinks to a bank-appropriate patch.
             var mill = new GameObject("Mill");
             mill.transform.SetParent(R, false);
-            mill.transform.localPosition = new Vector3(88f, 0f, 178f);
+            mill.transform.localPosition = new Vector3(104f, 0f, 178f);
             MeshUtil.Box(mill.transform, "Walls", 6f, 4f, 5f, 0x4f4234, 0f, 2f, 0f);
             var millRoofMesh = MeshUtil.TaperMesh(0.02f, 4.6f, 2.4f);
             var mr = MeshUtil.Tapered(mill.transform, "Roof", millRoofMesh, 0x3a2f22, 0f, 5.2f, 0f);
             mr.transform.localRotation = Quaternion.Euler(0f, 45f, 0f);
-            ctx.Solid(88f, 178f, 4.5f);
-            ctx.Dirt(88f, 178f, 10f);
+            ctx.Solid(104f, 178f, 4.5f);
+            ctx.Dirt(104f, 178f, 6f);
             var wheel = new GameObject("MillWheel");
             wheel.transform.SetParent(R, false);
-            wheel.transform.localPosition = new Vector3(100f, 1.5f, 178f);
+            wheel.transform.localPosition = new Vector3(107.5f, 1.5f, 178f);
             var discMesh = MeshUtil.TaperMesh(3f, 3f, 0.4f);
             var disc = MeshUtil.Tapered(wheel.transform, "Disc", discMesh, 0x5a4630, 0f, 0f, 0f);
             disc.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
@@ -794,6 +799,7 @@ namespace AxePath
             wslab.transform.localRotation = Quaternion.Euler(0f, 12f, 3f);
             var wsrune = MeshUtil.Box(waystone.transform, "Rune", 0.5f, 0.9f, 0.1f, 0xd9a441, 0f, 3f, 0.78f);
             wsrune.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xd9a441);
+            refs.waystonePos = new Vec2(-10f, -80f);
             ctx.Solid(-10f, -80f, 2.5f);
             ctx.Dirt(-10f, -80f, 6f);
 
@@ -865,9 +871,14 @@ namespace AxePath
             ctx.Solid(-10f, -329f, 5f);
             ctx.Solid(0f, -329f, 5f);
             ctx.Solid(10f, -329f, 5f);
-            // Front corners of the side walls; the mouth stays open.
-            ctx.Solid(-13f, -277f, 4f);
-            ctx.Solid(13f, -277f, 4f);
+            // Front corners of the side walls, tucked just inside the
+            // face plane (z=-277): centered ON the face they jutted 4u
+            // into open ground, an invisible wall 3.85u short of the
+            // guide mark. r=4.2 still caps both front corners (corner
+            // reach 4.47 < 4.65 with the 0.45 player radius) while the
+            // mark clears to 2.05u; the mouth stays open.
+            ctx.Solid(-13f, -279f, 4.2f);
+            ctx.Solid(13f, -279f, 4.2f);
             // No glow quad here: Unlit/Transparent renders opaque white and
             // walled the mouth shut for anyone inside looking out. The
             // MouthLight below carries the ember look on its own.
@@ -1264,7 +1275,10 @@ namespace AxePath
             }
             if (millWheel != null)
             {
-                millWheel.transform.localRotation *= Quaternion.Euler(Time.deltaTime * 30f, 0f, 0f);
+                // Undershot wheel: the current runs +z, so the dipped
+                // bottom must travel +z — negative about X. (Positive
+                // drove the bottom -z, against the current.)
+                millWheel.transform.localRotation *= Quaternion.Euler(Time.deltaTime * -30f, 0f, 0f);
             }
             if (waterMat != null)
             {

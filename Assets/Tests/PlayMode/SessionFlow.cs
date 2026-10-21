@@ -202,6 +202,106 @@ public class SessionFlow
     }
 
     [UnityTest]
+    public IEnumerator PauseResumeRoundtrip()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        S.Player.Teleport(48f, 183.5f, 0f);
+        var w = S.W;
+        var before = S.Player.EyeXZ();
+        S.HandlePlayEscape();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Paused, S.CurrentState);
+        Assert.IsTrue(S.Hud.IsPauseOpen());
+        Assert.IsNull(GameObject.Find("HudCanvas/Title"), "pause showed the title");
+        S.Resume();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Play, S.CurrentState);
+        Assert.IsFalse(S.Hud.IsPauseOpen());
+        Assert.AreSame(w, S.W, "resume replaced the session");
+        var after = S.Player.EyeXZ();
+        Assert.AreEqual(before.x, after.x, 0.01f, "resume respawned");
+        Assert.AreEqual(before.z, after.z, 0.01f, "resume respawned");
+    }
+
+    [UnityTest]
+    public IEnumerator PauseQuitsToTitle()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        S.HandlePlayEscape();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Paused, S.CurrentState);
+        var quit = GameObject.Find("HudCanvas/Pause/Quit").GetComponent<Button>();
+        quit.onClick.Invoke();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Title, S.CurrentState);
+        Assert.IsFalse(S.Hud.IsPauseOpen());
+        Assert.IsNotNull(GameObject.Find("HudCanvas/Title"), "title not shown");
+    }
+
+    [UnityTest]
+    public IEnumerator LookSensSliderRoundtrips()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        S.HandlePlayEscape();
+        yield return null;
+        float orig = PlayerController.LookSens;
+        var slider = GameObject.Find("HudCanvas/Pause/Sens").GetComponent<Slider>();
+        var val = GameObject.Find("HudCanvas/Pause/SensVal").GetComponent<Text>();
+        Assert.AreEqual(PlayerController.LookSensMin, slider.minValue);
+        Assert.AreEqual(PlayerController.LookSensMax, slider.maxValue);
+        slider.value = PlayerController.LookSensMax;
+        Assert.AreEqual(PlayerController.LookSensMax, PlayerController.LookSens);
+        Assert.AreEqual(PlayerController.LookSensMax, PlayerPrefs.GetFloat(GameSession.LookSensPrefKey));
+        Assert.AreEqual("200%", val.text);
+        slider.value = orig;
+        Assert.AreEqual(orig, PlayerController.LookSens);
+        Assert.AreEqual(orig, PlayerPrefs.GetFloat(GameSession.LookSensPrefKey));
+        S.Resume();
+        yield return null;
+        Assert.AreEqual(GameSession.State.Play, S.CurrentState);
+    }
+
+    [UnityTest]
+    public IEnumerator WaystoneRuneReads()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        S.Player.Teleport(-7f, -80f, 0f);
+        var t = S.InteractTarget();
+        Assert.IsNotNull(t, "no target at the waystone");
+        Assert.AreEqual("waystone", t.id);
+        S.TryInteract();
+        Assert.IsTrue(S.Hud.IsDialogueOpen());
+        S.AdvanceDialogue();
+        Assert.IsFalse(S.Hud.IsDialogueOpen());
+    }
+
+    [UnityTest]
+    public IEnumerator GuideReadsFromOutsideItsWall()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(1);
+        // 4.5 south of the corner collider's center: genuinely walkable,
+        // 3.9 from the mark — inside the extended reach only.
+        S.Player.Teleport(13f, -272.5f, 0f);
+        var t = S.InteractTarget();
+        Assert.IsNotNull(t, "no target at the guide mark");
+        Assert.AreEqual("guide", t.id);
+        S.TryInteract();
+        Assert.IsTrue(S.Hud.IsDialogueOpen());
+        S.AdvanceDialogue();
+        Assert.IsFalse(S.Hud.IsDialogueOpen());
+    }
+
+    [UnityTest]
     public IEnumerator RealClickPipeline()
     {
         yield return null;
@@ -242,6 +342,79 @@ public class SessionFlow
         yield return null;
         yield return null;
         Assert.IsFalse(S.Hud.IsDialogueOpen());
+    }
+
+    [UnityTest]
+    public IEnumerator HitStopAndKick()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(3);
+        S.W.axe.have = true;
+        int hp0 = S.W.player.hp;
+        // Scripted bite: a chasing wolf inside attack range telegraphs
+        // (windup) then lunges ~0.45s later — poll for the wound so the
+        // kick is asserted fresh, on the bite frame itself.
+        S.Wolves[0].brain.state = "chase";
+        S.Wolves[0].brain.pos = new Vec2(-70f, 2.2f);
+        S.Player.Teleport(-70f, 3.5f, Face(-70f, 3.5f, -70f, 2.2f));
+        bool sawWindup = false;
+        float t0 = Time.realtimeSinceStartup;
+        while (S.W.player.hp == hp0 && Time.realtimeSinceStartup - t0 < 3f)
+        {
+            if (S.Wolves[0].brain.state == "windup") sawWindup = true;
+            yield return null;
+        }
+        Assert.IsTrue(sawWindup, "wolf never telegraphed");
+        Assert.AreEqual(hp0 - 1, S.W.player.hp);
+        Assert.Greater(S.Player.Trauma, 0f);
+
+        // Wound: the stop timer is set, the lens is kicked, and the wolf
+        // holds its position for a frame — 0.06s of stop can never expire
+        // inside one 0.05s-clamped frame.
+        S.TryAttack();
+        Assert.AreEqual(1, S.Wolves[0].hp);
+        float stop1 = S.HitStop;
+        Assert.Greater(stop1, 0f);
+        Assert.Greater(S.Player.Trauma, 0f);
+        var frozen = S.Wolves[0].brain.pos;
+        yield return null;
+        Assert.AreEqual(frozen.x, S.Wolves[0].brain.pos.x);
+        Assert.AreEqual(frozen.z, S.Wolves[0].brain.pos.z);
+        Assert.Greater(S.HitStop, 0f);
+        yield return new WaitForSeconds(0.8f);
+        Assert.AreEqual(0f, S.HitStop);
+
+        // Kill: longer stop, wolf still, no stray bites interfered, and
+        // the shake fully decays.
+        S.TryAttack();
+        Assert.IsFalse(S.Wolves[0].brain.alive);
+        Assert.Greater(S.HitStop, stop1);
+        Assert.Greater(S.Player.Trauma, 0f);
+        Assert.AreEqual(hp0 - 1, S.W.player.hp);
+        yield return new WaitForSeconds(0.8f);
+        Assert.AreEqual(0f, S.Player.Trauma);
+        Assert.IsTrue(S.W.player.alive);
+    }
+
+    [UnityTest]
+    public IEnumerator ChopLandsWeight()
+    {
+        yield return null;
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        int c0 = S.W.skill.chops;
+        S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
+        S.TryAttack();
+        Assert.AreEqual(c0 + 1, S.W.skill.chops);
+        Assert.Greater(S.HitStop, 0f);
+        Assert.Greater(S.Player.Trauma, 0f);
+        Assert.Greater(S.ChipCount, 0);
+        Assert.Greater(S.TreeShakeCount, 0);
+        yield return new WaitForSeconds(1.5f);
+        Assert.AreEqual(0, S.ChipCount);
+        Assert.AreEqual(0, S.TreeShakeCount);
     }
 
 }
