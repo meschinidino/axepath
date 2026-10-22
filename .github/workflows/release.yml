@@ -31,14 +31,15 @@ jobs:
             zipName: AxePath-Windows.zip
     steps:
       - uses: actions/checkout@v7
+      # Strip \r too: Windows runners check out text files with CRLF.
       - name: Tag must match VERSION
         shell: bash
         run: |
-          test "v$(tr -d ' \n' < VERSION)" = "${{ github.ref_name }}" \
+          test "v$(tr -d ' \r\n' < VERSION)" = "${{ github.ref_name }}" \
             || { echo "tag ${{ github.ref_name }} != v$(cat VERSION)"; exit 1; }
       - id: unity
         shell: bash
-        run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2 | tr -d '\r')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: Library
