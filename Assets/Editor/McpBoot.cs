@@ -25,7 +25,20 @@ public static class McpBoot
     {
         try
         {
-            bool ok = await MCPForUnity.Editor.Services.MCPServiceLocator.Bridge.StartAsync();
+            var bridge = MCPForUnity.Editor.Services.MCPServiceLocator.Bridge;
+            bool ok = await bridge.StartAsync();
+            if (!ok)
+            {
+                // HTTP mode dials an external relay that usually isn't running.
+                // Fall back to stdio, where Unity hosts the listener clients probe.
+                var config = MCPForUnity.Editor.Services.EditorConfigurationCache.Instance;
+                if (config.UseHttpTransport)
+                {
+                    Debug.Log("MCPBOOT: preferred transport failed, falling back to stdio");
+                    config.SetUseHttpTransport(false);
+                    ok = await bridge.StartAsync();
+                }
+            }
             Debug.Log("MCPBOOT: bridge start " + (ok ? "OK" : "FAILED"));
         }
         catch (System.Exception ex)
