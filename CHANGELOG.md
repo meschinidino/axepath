@@ -5,6 +5,15 @@ releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 
 ## [Unreleased]
 
+### Added
+
+- Tuning-as-data: every balance knob (wolf senses/HP/speed, dulling,
+  swing, hit-stop/shake, chop FX) lives in `Assets/Resources/tuning.json`
+  and loads at session start; `TuningSet` is the plain-data shape,
+  `Logic` reads it, and a corrupt or missing file falls back to the
+  previous in-code defaults. 8 new EditMode tests pin the loader and
+  the formulas over arbitrary data.
+
 ### Fixed
 
 - CI actions bumped off deprecated Node 20 (checkout v7, cache v6,

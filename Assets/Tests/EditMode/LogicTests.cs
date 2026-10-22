@@ -9,12 +9,17 @@ public class TrustOrderTests
     [Test]
     public void StaysColdWithoutDulledAxe_ThawsWithOne()
     {
-        var w = Logic.CreateWorld();
+        // Custom threshold above the default 40: dullness 50 must still
+        // read cold, proving the thaw point comes from the data, not code.
+        var t = new TuningSet { dullThresholdCivil = 55f };
+        var w = Logic.CreateWorld(t);
         Logic.TakeYardAxe(w);
-        Assert.AreEqual("cold", Logic.TalkDwarf(w).evt);
+        Assert.AreEqual("cold", Logic.TalkDwarf(w, t).evt);
         Assert.AreEqual(Trust.Cold, w.trust);
-        w.axe.dullness = Tuning.DullThresholdCivil;
-        Assert.AreEqual("thaw", Logic.TalkDwarf(w).evt);
+        w.axe.dullness = 50f;
+        Assert.AreEqual("cold", Logic.TalkDwarf(w, t).evt);
+        w.axe.dullness = t.dullThresholdCivil;
+        Assert.AreEqual("thaw", Logic.TalkDwarf(w, t).evt);
         Assert.AreEqual(Trust.Civil, w.trust);
     }
 
@@ -72,21 +77,24 @@ public class DullnessAndSkillTests
     [Test]
     public void ChopsDullEdgeAndStepSwingUp()
     {
-        var w = Logic.CreateWorld();
+        var t = new TuningSet { dullPerChop = 10f, chopsPerStep = 3, swingBaseMs = 600f, swingStepMs = 25f, swingMinMs = 100f };
+        var w = Logic.CreateWorld(t);
         Logic.TakeYardAxe(w);
-        float before = w.skill.swingMs;
-        for (int i = 0; i < Tuning.ChopsPerStep; i++) Logic.UseAxe(w, "chop");
-        Assert.IsTrue(w.axe.dullness > 0f);
-        Assert.IsTrue(w.skill.swingMs < before);
+        for (int i = 0; i < 3; i++) Logic.UseAxe(w, "chop", t);
+        Assert.AreEqual(30f, w.axe.dullness);
+        Assert.AreEqual(575f, w.skill.swingMs);
     }
 
     [Test]
     public void HitsQuietTheStep()
     {
-        var w = Logic.CreateWorld();
+        var t = new TuningSet { noiseStep = 0.25f, noiseMin = 0.5f, killsPerStep = 2 };
+        var w = Logic.CreateWorld(t);
         Logic.TakeYardAxe(w);
-        Logic.UseAxe(w, "hit");
-        Assert.IsTrue(w.skill.noiseMul < Tuning.NoiseBase);
+        Logic.UseAxe(w, "hit", t);
+        Assert.AreEqual(1f, w.skill.noiseMul);
+        Logic.UseAxe(w, "hit", t);
+        Assert.AreEqual(0.75f, w.skill.noiseMul);
     }
 
     [Test]
@@ -104,14 +112,15 @@ public class DullnessAndSkillTests
     [Test]
     public void SharpenedEdgeHoldsFarLonger()
     {
-        var w = Logic.CreateWorld();
+        var t = new TuningSet { dullPerChop = 10f, sharpenHoldMul = 0.5f };
+        var w = Logic.CreateWorld(t);
         Logic.TakeYardAxe(w);
         w.axe.dullness = 80f;
-        Logic.TalkDwarf(w);
+        Logic.TalkDwarf(w, t);
         w.ironwood.have = 1;
-        Logic.TurnInIronwood(w);
-        Logic.UseAxe(w, "chop");
-        Assert.IsTrue(w.axe.dullness < Tuning.DullPerChop);
+        Logic.TurnInIronwood(w, t);
+        Logic.UseAxe(w, "chop", t);
+        Assert.AreEqual(5f, w.axe.dullness);
     }
 }
 
@@ -119,16 +128,18 @@ public class DullnessAndSkillTests
 public class DeathAndCorpseRunTests
 {
     [Test]
-    public void ThreeHitsKill_DeathWritesNewNobodyIntoSameWorld()
+    public void HpFromData_KillAndRespawnKeepWorld()
     {
-        var w = Logic.CreateWorld();
+        var t = new TuningSet { playerHp = 2 };
+        var w = Logic.CreateWorld(t);
         Logic.TakeYardAxe(w);
         w.axe.dullness = 90f;
-        Logic.TalkDwarf(w);
-        for (int i = 0; i < Tuning.WolfHitsToKill; i++) Logic.DamagePlayer(w, 1);
+        Logic.TalkDwarf(w, t);
+        for (int i = 0; i < t.playerHp; i++) Logic.DamagePlayer(w, 1);
         Assert.AreEqual(false, w.player.alive);
-        Assert.AreEqual(true, Logic.Die(w, new DropPos { x = 10f, z = 20f }));
+        Assert.AreEqual(true, Logic.Die(w, new DropPos { x = 10f, z = 20f }, t));
         Assert.AreEqual(true, w.player.alive);
+        Assert.AreEqual(t.playerHp, w.player.hp);
         Assert.AreEqual(2, w.generation);
         Assert.AreEqual(Trust.Cold, w.trust);
         Assert.AreEqual(false, w.axe.have);
@@ -411,12 +422,14 @@ public class WolfBrainTests
     [Test]
     public void RunningIsHeardFartherThanWalking()
     {
-        float near = Tuning.WolfHearWalk + 1f;
+        // Custom ears below the defaults: at 21u a walker must pass
+        // unheard, proving the radii come from the data, not code.
+        var t = new TuningSet { wolfHearWalk = 20f, wolfHearRun = 60f };
         var w1 = Logic.CreateWolf(0f, 0f);
-        Logic.WolfStep(w1, 0f, near, false, 1f, 0.1f, null);
+        Logic.WolfStep(w1, 0f, 21f, false, 1f, 0.1f, t);
         Assert.AreEqual("idle", w1.state);
         var w2 = Logic.CreateWolf(0f, 0f);
-        Logic.WolfStep(w2, 0f, near, true, 1f, 0.1f, null);
+        Logic.WolfStep(w2, 0f, 21f, true, 1f, 0.1f, t);
         Assert.AreEqual("warn", w2.state);
     }
 }

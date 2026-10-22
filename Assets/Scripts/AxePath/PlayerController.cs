@@ -20,6 +20,7 @@ namespace AxePath
         public float pitch;
         public bool running;
         public event Action OnStep;
+        public TuningSet Tuning = TuningSet.Default();
 
         private GameObject axeView;
         private Material edgeMat;
@@ -93,8 +94,8 @@ namespace AxePath
         private void ApplyLook()
         {
             // Shake offsets the lens, never yaw/pitch: aim returns exactly.
-            float shYaw = ShakeOffset(trauma, shakeT) * Tuning.ShakeMaxRad;
-            float shPitch = ShakeOffset(trauma, shakeT + 7.3f) * Tuning.ShakeMaxRad;
+            float shYaw = ShakeOffset(trauma, shakeT) * Tuning.shakeMaxRad;
+            float shPitch = ShakeOffset(trauma, shakeT + 7.3f) * Tuning.shakeMaxRad;
             transform.rotation = Quaternion.Euler(0f, 180f + (yaw + shYaw) * 57.29578f, 0f);
             if (Cam != null) Cam.transform.localRotation = Quaternion.Euler((pitch + shPitch) * 57.29578f, 0f, 0f);
         }
@@ -198,7 +199,7 @@ namespace AxePath
             }
 
             shakeT += dt;
-            trauma = TraumaAfter(trauma, dt, Tuning.TraumaDecaySecs);
+            trauma = TraumaAfter(trauma, dt, Tuning.traumaDecaySecs);
             ApplyLook();
         }
 

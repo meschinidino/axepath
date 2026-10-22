@@ -20,7 +20,8 @@ namespace AxePath
         public const float WolfHearRun = 90f;
         public const float WolfWarnSecs = 3f;
         public const float WolfLeash = 150f;
-        public const int WolfHitsToKill = 3;
+        public const int PlayerHp = 3;
+        public const int WolfHp = 2;
         public const float WolfChaseSpeed = 4.2f;
         public const float WolfAttackRange = 1.7f;
         public const float WolfWindupSecs = 0.45f;
@@ -183,16 +184,67 @@ namespace AxePath
         public const string SaveErrBook = "That save has a broken book.";
     }
 
+    // Every tunable as data: balance lives in tuning.json, not in code.
+    // Field initializers are the canonical defaults (== Tuning consts);
+    // FromJson merges a (possibly partial) JSON doc over those defaults,
+    // so a corrupt or missing file degrades to default balance, never
+    // to a crash or a zeroed-out world. Lowercase fields keep the JSON
+    // shape stable, same convention as the save format.
     public class TuningSet
     {
         public float wolfHearWalk = Tuning.WolfHearWalk;
         public float wolfHearRun = Tuning.WolfHearRun;
         public float wolfWarnSecs = Tuning.WolfWarnSecs;
         public float wolfLeash = Tuning.WolfLeash;
+        public int wolfHp = Tuning.WolfHp;
+        public float wolfChaseSpeed = Tuning.WolfChaseSpeed;
         public float wolfAttackRange = Tuning.WolfAttackRange;
         public float wolfWindupSecs = Tuning.WolfWindupSecs;
         public float wolfLungeRange = Tuning.WolfLungeRange;
+        public float wolfHitSecs = Tuning.WolfHitSecs;
+        public float wolfFlashSecs = Tuning.WolfFlashSecs;
+        public float wolfKnockSpeed = Tuning.WolfKnockSpeed;
+        public float wolfStaggerSecs = Tuning.WolfStaggerSecs;
+        public float chopStopSecs = Tuning.ChopStopSecs;
+        public float chopShake = Tuning.ChopShake;
+        public float treeShudderSecs = Tuning.TreeShudderSecs;
+        public float treeShudderMag = Tuning.TreeShudderMag;
+        public float chipGravity = Tuning.ChipGravity;
+        public float chipLifeSecs = Tuning.ChipLifeSecs;
+        public float axeReach = Tuning.AxeReach;
+        public float hitStopSecs = Tuning.HitStopSecs;
+        public float killStopSecs = Tuning.KillStopSecs;
+        public float hurtStopSecs = Tuning.HurtStopSecs;
+        public float hitShake = Tuning.HitShake;
+        public float killShake = Tuning.KillShake;
+        public float hurtShake = Tuning.HurtShake;
+        public float shakeMaxRad = Tuning.ShakeMaxRad;
+        public float traumaDecaySecs = Tuning.TraumaDecaySecs;
+        public float killFlashSecs = Tuning.KillFlashSecs;
+        public float dullPerChop = Tuning.DullPerChop;
+        public float dullPerHit = Tuning.DullPerHit;
+        public float dullThresholdCivil = Tuning.DullThresholdCivil;
+        public float swingBaseMs = Tuning.SwingBaseMs;
+        public float swingStepMs = Tuning.SwingStepMs;
+        public float swingMinMs = Tuning.SwingMinMs;
+        public float noiseBase = Tuning.NoiseBase;
+        public float noiseStep = Tuning.NoiseStep;
+        public float noiseMin = Tuning.NoiseMin;
+        public int chopsPerStep = Tuning.ChopsPerStep;
+        public int killsPerStep = Tuning.KillsPerStep;
+        public int ironwoodLogsNeeded = Tuning.IronwoodLogsNeeded;
+        public float sharpenHoldMul = Tuning.SharpenHoldMul;
+        public int playerHp = Tuning.PlayerHp;
         public static TuningSet Default() { return new TuningSet(); }
+        public string ToJson() { return JsonConvert.SerializeObject(this, Formatting.Indented); }
+        public static TuningSet FromJson(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return TuningSet.Default();
+            var t = TuningSet.Default();
+            try { JsonConvert.PopulateObject(text, t); }
+            catch { return TuningSet.Default(); }
+            return t;
+        }
     }
 
     [Serializable]
@@ -374,8 +426,9 @@ namespace AxePath
 
     public static class Logic
     {
-        public static WorldState CreateWorld()
+        public static WorldState CreateWorld(TuningSet t = null)
         {
+            if (t == null) t = TuningSet.Default();
             return new WorldState
             {
                 version = Meta.SaveVersion,
@@ -385,8 +438,8 @@ namespace AxePath
                 trust = Trust.Cold,
                 warnedDraw = false,
                 axe = new AxeState { have = false, yard = true, dullness = 0f, sharpened = false, droppedAt = null },
-                skill = new SkillState { chops = 0, kills = 0, swingMs = Tuning.SwingBaseMs, noiseMul = Tuning.NoiseBase },
-                player = new PlayerState { hp = Tuning.WolfHitsToKill, alive = true },
+                skill = new SkillState { chops = 0, kills = 0, swingMs = t.swingBaseMs, noiseMul = t.noiseBase },
+                player = new PlayerState { hp = t.playerHp, alive = true },
                 ironwood = new IronwoodState { have = 0, turnedIn = false },
                 book = new BookState { have = false, read = false },
                 flags = new FlagsState { metDwarf = false, metLibrarian = false },
@@ -419,26 +472,27 @@ namespace AxePath
             return 2;
         }
 
-        public static bool UseAxe(WorldState w, string kind)
+        public static bool UseAxe(WorldState w, string kind, TuningSet t = null)
         {
             if (!w.axe.have || !w.player.alive) return false;
-            float hold = w.axe.sharpened ? Tuning.SharpenHoldMul : 1f;
+            if (t == null) t = TuningSet.Default();
+            float hold = w.axe.sharpened ? t.sharpenHoldMul : 1f;
             if (kind == "chop")
             {
                 w.skill.chops += 1;
-                w.axe.dullness = Math.Min(100f, w.axe.dullness + Tuning.DullPerChop * hold);
-                if (w.skill.chops % Tuning.ChopsPerStep == 0)
+                w.axe.dullness = Math.Min(100f, w.axe.dullness + t.dullPerChop * hold);
+                if (w.skill.chops % t.chopsPerStep == 0)
                 {
-                    w.skill.swingMs = Math.Max(Tuning.SwingMinMs, w.skill.swingMs - Tuning.SwingStepMs);
+                    w.skill.swingMs = Math.Max(t.swingMinMs, w.skill.swingMs - t.swingStepMs);
                 }
             }
             else if (kind == "hit")
             {
                 w.skill.kills += 1;
-                w.axe.dullness = Math.Min(100f, w.axe.dullness + Tuning.DullPerHit * hold);
-                if (w.skill.kills % Tuning.KillsPerStep == 0)
+                w.axe.dullness = Math.Min(100f, w.axe.dullness + t.dullPerHit * hold);
+                if (w.skill.kills % t.killsPerStep == 0)
                 {
-                    w.skill.noiseMul = Math.Max(Tuning.NoiseMin, w.skill.noiseMul - Tuning.NoiseStep);
+                    w.skill.noiseMul = Math.Max(t.noiseMin, w.skill.noiseMul - t.noiseStep);
                 }
             }
             else
@@ -448,14 +502,15 @@ namespace AxePath
             return true;
         }
 
-        public static TalkResult TalkDwarf(WorldState w)
+        public static TalkResult TalkDwarf(WorldState w, TuningSet t = null)
         {
             if (!w.dwarfAlive) return new TalkResult { line = null, evt = "dead" };
             w.flags.metDwarf = true;
+            if (t == null) t = TuningSet.Default();
             if (w.trust == Trust.Ended) return new TalkResult { line = null, evt = "refused" };
             if (w.trust == Trust.Sharp) return new TalkResult { line = Lines.DwarfSharpening, evt = "idle-sharp" };
             if (w.trust == Trust.Civil) return new TalkResult { line = Lines.DwarfCivil, evt = "idle-civil" };
-            if (w.axe.have && w.axe.dullness >= Tuning.DullThresholdCivil)
+            if (w.axe.have && w.axe.dullness >= t.dullThresholdCivil)
             {
                 w.trust = Trust.Civil;
                 return new TalkResult { line = Lines.DwarfArrival, evt = "thaw" };
@@ -484,13 +539,14 @@ namespace AxePath
             return true;
         }
 
-        public static bool TurnInIronwood(WorldState w)
+        public static bool TurnInIronwood(WorldState w, TuningSet t = null)
         {
             if (!w.dwarfAlive) return false;
             if (w.trust != Trust.Civil) return false;
-            if (w.ironwood.have < Tuning.IronwoodLogsNeeded) return false;
+            if (t == null) t = TuningSet.Default();
+            if (w.ironwood.have < t.ironwoodLogsNeeded) return false;
             if (!w.axe.have) return false;
-            w.ironwood.have -= Tuning.IronwoodLogsNeeded;
+            w.ironwood.have -= t.ironwoodLogsNeeded;
             w.ironwood.turnedIn = true;
             w.trust = Trust.Sharp;
             w.axe.sharpened = true;
@@ -511,16 +567,17 @@ namespace AxePath
             return false;
         }
 
-        public static bool Die(WorldState w, DropPos pos)
+        public static bool Die(WorldState w, DropPos pos, TuningSet t = null)
         {
             if (w.player.alive) return false;
+            if (t == null) t = TuningSet.Default();
             w.deaths += 1;
             w.generation += 1;
             w.player.alive = true;
-            w.player.hp = Tuning.WolfHitsToKill;
+            w.player.hp = t.playerHp;
             w.trust = w.dwarfAlive ? Trust.Cold : Trust.Ended;
             w.warnedDraw = false;
-            w.skill = new SkillState { chops = 0, kills = 0, swingMs = Tuning.SwingBaseMs, noiseMul = Tuning.NoiseBase };
+            w.skill = new SkillState { chops = 0, kills = 0, swingMs = t.swingBaseMs, noiseMul = t.noiseBase };
             if (w.axe.have)
             {
                 w.axe.have = false;
@@ -656,7 +713,7 @@ namespace AxePath
             return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
-        public static WolfStepResult WolfStep(WolfState wolf, float px, float pz, bool running, float noiseMul, float dt, TuningSet t)
+        public static WolfStepResult WolfStep(WolfState wolf, float px, float pz, bool running, float noiseMul, float dt, TuningSet t = null)
         {
             if (t == null) t = TuningSet.Default();
             var res = new WolfStepResult();

@@ -18,6 +18,7 @@ namespace AxePath
 
     public class WolfView : MonoBehaviour
     {
+        public TuningSet Tuning = TuningSet.Default();
         private GameObject root;
         private List<GameObject> eyes;
         private List<Material> furMats;
@@ -53,15 +54,15 @@ namespace AxePath
             if (fx.knockT > 0f)
             {
                 fx.knockT -= dt;
-                float kk = Mathf.Max(0f, fx.knockT) / Tuning.WolfHitSecs;
-                brain.pos.x += fx.knockDir.x * kk * Tuning.WolfKnockSpeed * dt;
-                brain.pos.z += fx.knockDir.z * kk * Tuning.WolfKnockSpeed * dt;
+                float kk = Mathf.Max(0f, fx.knockT) / Tuning.wolfHitSecs;
+                brain.pos.x += fx.knockDir.x * kk * Tuning.wolfKnockSpeed * dt;
+                brain.pos.z += fx.knockDir.z * kk * Tuning.wolfKnockSpeed * dt;
             }
             root.transform.localPosition = new Vector3(brain.pos.x, WorldBuilder.GroundH(brain.pos.x, brain.pos.z), brain.pos.z);
             if (fx.hitT > 0f)
             {
                 fx.hitT -= dt;
-                float k = Mathf.Max(0f, fx.hitT) / Tuning.WolfHitSecs;
+                float k = Mathf.Max(0f, fx.hitT) / Tuning.wolfHitSecs;
                 float punch = Mathf.Sin(k * Mathf.PI);
                 var rp = root.transform.localPosition;
                 rp.x += fx.hitDir.x * punch * 0.55f;
@@ -80,7 +81,7 @@ namespace AxePath
             if (fx.flashT > 0f)
             {
                 fx.flashT -= dt;
-                float f = Mathf.Max(0f, fx.flashT) / Tuning.WolfFlashSecs;
+                float f = Mathf.Max(0f, fx.flashT) / Tuning.wolfFlashSecs;
                 var glow = new Color(f, f * 0.3f, f * 0.2f);
                 foreach (var m in furMats) m.SetColor("_EmissionColor", glow);
             }

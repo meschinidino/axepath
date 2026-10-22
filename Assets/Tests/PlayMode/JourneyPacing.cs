@@ -79,8 +79,8 @@ public class JourneyPacing
         var o = Logic.WolfStep(wolf, -12f, 0f, true, 1f, 0.1f, null);
         CollectionAssert.Contains(o.events, "growl");
         // Escape inequality: chase must stay slower than the player's run.
-        Assert.Less(Tuning.WolfChaseSpeed, 7.2f, "wolves outrun the player");
-        Debug.Log("PROBE-WOLF runner-heard chase=" + Tuning.WolfChaseSpeed);
+        Assert.Less(S.Tuning.wolfChaseSpeed, 7.2f, "wolves outrun the player");
+        Debug.Log("PROBE-WOLF runner-heard chase=" + S.Tuning.wolfChaseSpeed);
         S.ToTitle();
     }
 }
