@@ -31,11 +31,11 @@ public class ChopFeelTests
     }
 
     [Test]
-    public void ChipStepFallsAndDrags()
+    public void MoteStepFallsAndDrags()
     {
         var pos = new Vector3(0f, 0f, 0f);
         var vel = new Vector3(2f, 0f, 0f);
-        GameSession.ChipStep(ref pos, ref vel, 0.1f, 14f);
+        GameSession.MoteStep(ref pos, ref vel, 0.1f, 14f);
         Assert.Less(vel.y, 0f);
         Assert.Less(System.Math.Abs(vel.x), 2f);
         Assert.Greater(pos.x, 0f);

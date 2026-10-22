@@ -10,6 +10,12 @@ using AxePath;
 
 public class WorldShots
 {
+    [UnitySetUp]
+    public IEnumerator WaitForBoot()
+    {
+        yield return TestBoot.WaitForReady();
+    }
+
     [UnityTest]
     public IEnumerator WorldStructure()
     {
@@ -326,6 +332,18 @@ public class WorldShots
         cam.transform.localPosition = new Vector3(0f, 1.65f, 0f);
         cam.transform.localRotation = Quaternion.identity;
         yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator StaticsMerged()
+    {
+        yield return null;
+        int renderers = Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None).Length;
+        Assert.Less(renderers, 1000, "unmerged statics: " + renderers + " renderers");
+        Assert.AreEqual(3, Game.World.refs.landmarkPines.Count, "landmarks must stay live for the shake");
+        Assert.IsNotNull(GameObject.Find("MergedStatics"));
+        Assert.IsNotNull(GameObject.Find("Mill"), "merge must keep containers");
+        Assert.IsNotNull(GameObject.Find("Blaze"), "merge must spare plaques");
     }
 
     [UnityTest]

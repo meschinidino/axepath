@@ -16,6 +16,7 @@ namespace AxePath
         {
             if (GameObject.Find("AxePath") != null) return;
             var root = new GameObject("AxePath");
+            root.AddComponent<PerfLog>();
 
             RenderSettings.fog = true;
             RenderSettings.fogColor = MeshUtil.C(0x1a2438);
@@ -54,11 +55,29 @@ namespace AxePath
             fill.shadows = LightShadows.None;
             fillGo.transform.LookAt(new Vector3(0f, 0f, -50f));
 
-            World = WorldBuilder.Build(root.transform);
-            WeatherBuilder.Build(root.transform, World.refs);
-            Actors = ActorBuilder.Build(root.transform, World.spots);
+            var hudGo = new GameObject("Hud");
+            hudGo.transform.SetParent(root.transform, false);
+            var hud = hudGo.AddComponent<Hud>();
+            hud.Build();
+            hud.ShowLoading(true);
 
-            var anim = root.AddComponent<WorldAnimator>();
+            var audioGo = new GameObject("Audio");
+            audioGo.transform.SetParent(root.transform, false);
+            var audio = audioGo.AddComponent<AudioSynth>();
+
+            var stager = root.AddComponent<BootStager>();
+            stager.Begin(root.transform, hud, audio, hasSky);
+        }
+
+        // Tail of the two-phase boot: runs after the staged world build,
+        // in the same order the old synchronous Boot used.
+        internal static void FinishBoot(Transform rootT, Hud hud, AudioSynth audio, GameWorld world, bool hasSky)
+        {
+            World = world;
+            WeatherBuilder.Build(rootT, World.refs);
+            Actors = ActorBuilder.Build(rootT, World.spots);
+
+            var anim = rootT.gameObject.AddComponent<WorldAnimator>();
             anim.forgeLight = World.refs.forgeLight;
             anim.smokePuffs = World.refs.smokePuffs;
             anim.smokeBase = World.refs.smokeBase;
@@ -71,7 +90,7 @@ namespace AxePath
             anim.fireflyMats = World.refs.fireflyMats;
 
             var playerGo = new GameObject("Player");
-            playerGo.transform.SetParent(root.transform, false);
+            playerGo.transform.SetParent(rootT, false);
             var player = playerGo.AddComponent<PlayerController>();
             player.Build(new Vector3(World.spots.spawn.x, 0f, World.spots.spawn.z));
             player.SetWorld(World);
@@ -81,26 +100,49 @@ namespace AxePath
             var wolfViews = new System.Collections.Generic.List<WolfView>();
             for (int i = 0; i < World.spots.wolfHomes.Count; i++)
             {
-                wolfViews.Add(root.AddComponent<WolfView>());
+                wolfViews.Add(rootT.gameObject.AddComponent<WolfView>());
             }
-            var npcView = root.AddComponent<NpcView>();
-
-            var hudGo = new GameObject("Hud");
-            hudGo.transform.SetParent(root.transform, false);
-            var hud = hudGo.AddComponent<Hud>();
-            hud.Build();
-
-            var audioGo = new GameObject("Audio");
-            audioGo.transform.SetParent(root.transform, false);
-            var audio = audioGo.AddComponent<AudioSynth>();
+            var npcView = rootT.gameObject.AddComponent<NpcView>();
 
             var sessionGo = new GameObject("Session");
-            sessionGo.transform.SetParent(root.transform, false);
+            sessionGo.transform.SetParent(rootT, false);
             var session = sessionGo.AddComponent<GameSession>();
             Session = session;
+            hud.ShowLoading(false);
             session.StartSession(World, Actors, player, hud, audio, wolfViews, npcView);
 
             Debug.Log("AXEPATH: session ready, trees=" + World.refs.treeCount);
+        }
+    }
+
+    // Builds the heavy world one stage per frame so the loading overlay
+    // paints between stages. Runs once; the Boot guard prevents doubles.
+    public class BootStager : MonoBehaviour
+    {
+        private Transform rootT;
+        private Hud hud;
+        private AudioSynth audio;
+        private bool hasSky;
+
+        public void Begin(Transform rootT, Hud hud, AudioSynth audio, bool hasSky)
+        {
+            this.rootT = rootT;
+            this.hud = hud;
+            this.audio = audio;
+            this.hasSky = hasSky;
+            StartCoroutine(Run());
+        }
+
+        private System.Collections.IEnumerator Run()
+        {
+            var build = new WorldBuilder.StagedBuild(rootT);
+            while (true)
+            {
+                hud.SetLoadingStage(WorldBuilder.StagedBuild.StageNames[build.Stage]);
+                yield return null;
+                if (!build.Step()) break;
+            }
+            Game.FinishBoot(rootT, hud, audio, build.world, hasSky);
         }
     }
 }

@@ -1,5 +1,5 @@
 # Axe Path releases: tag vX.Y.Z (matching VERSION) to build the
-# macOS player and attach it to a GitHub Release.
+# macOS and Windows players and attach them to a GitHub Release.
 #
 # Cut a release:
 #   1. CHANGELOG entry under [Unreleased], then rename it to [X.Y.Z].
@@ -12,26 +12,39 @@ on:
     tags: ['v*']
 
 jobs:
-  release:
-    name: build and publish
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: write
+  build:
+    name: build ${{ matrix.targetPlatform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS player: Linux host cross-compile (proven path).
+          - targetPlatform: StandaloneOSX
+            os: ubuntu-24.04
+            zipName: AxePath-macOS.zip
+          # Windows player: needs a Windows host when the project
+          # uses IL2CPP (MSVC toolchain); works for Mono too.
+          - targetPlatform: StandaloneWindows64
+            os: windows-latest
+            zipName: AxePath-Windows.zip
     steps:
       - uses: actions/checkout@v7
       - name: Tag must match VERSION
+        shell: bash
         run: |
           test "v$(tr -d ' \n' < VERSION)" = "${{ github.ref_name }}" \
             || { echo "tag ${{ github.ref_name }} != v$(cat VERSION)"; exit 1; }
       - id: unity
+        shell: bash
         run: echo "version=$(grep '^m_EditorVersion:' ProjectSettings/ProjectVersion.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: Library
-          key: Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-${{ matrix.targetPlatform }}-${{ steps.unity.outputs.version }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: |
-            Library-${{ runner.os }}-${{ steps.unity.outputs.version }}-
+            Library-${{ matrix.targetPlatform }}-${{ steps.unity.outputs.version }}-
       # Same OOM flake net as CI: attempt 2 reuses attempt 1's warm
       # workspace; genuine breaks fail twice and loudly below.
       - uses: game-ci/unity-builder@v6
@@ -42,7 +55,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: ${{ steps.unity.outputs.version }}
-          targetPlatform: StandaloneOSX
+          targetPlatform: ${{ matrix.targetPlatform }}
           buildName: AxePath
           buildsPath: build
       # A killed attempt can leave untracked byproducts (seen once:
@@ -52,11 +65,15 @@ jobs:
       - name: Clean worktree dirt left by a failed attempt
         id: cleanup
         if: steps.build1.outcome == 'failure'
+        shell: bash
         run: |
           echo '--- pre-cleanup status ---'
           git status --porcelain
           git checkout -- .
-          git clean -fdq -- Assets/ Packages/ ProjectSettings/
+          git clean -fdq -- Assets/ Packages/ ProjectSettings/ || {
+            echo 'retrying with sudo (the builder runs as root in docker)';
+            sudo git clean -fdq -- Assets/ Packages/ ProjectSettings/;
+          }
           echo '--- post-cleanup status ---'
           git status --porcelain
       - uses: game-ci/unity-builder@v6
@@ -67,15 +84,41 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: ${{ steps.unity.outputs.version }}
-          targetPlatform: StandaloneOSX
+          targetPlatform: ${{ matrix.targetPlatform }}
           buildName: AxePath
           buildsPath: build
       - name: Fail the job when both build attempts failed
         if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
+        shell: bash
         run: exit 1
-      - name: Zip the .app
+      - name: Zip the macOS .app
+        if: matrix.targetPlatform == 'StandaloneOSX'
+        shell: bash
         run: cd build/StandaloneOSX && zip -r -y ../../AxePath-macOS.zip AxePath.app
+      - name: Zip the Windows player
+        if: matrix.targetPlatform == 'StandaloneWindows64'
+        shell: pwsh
+        run: Compress-Archive -Path build/StandaloneWindows64/* -DestinationPath AxePath-Windows.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: player-${{ matrix.targetPlatform }}
+          path: ${{ matrix.zipName }}
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v6
+        with:
+          path: dist
+          merge-multiple: true
       - uses: softprops/action-gh-release@v3
         with:
-          files: AxePath-macOS.zip
+          files: dist/AxePath-*.zip
+          body_path: INSTALL.md
           generate_release_notes: true

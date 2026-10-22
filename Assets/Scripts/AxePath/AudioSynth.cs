@@ -42,6 +42,8 @@ namespace AxePath
         private bool windOn;
         private float windLp;
         private int rate = 48000;
+        private float masterGain = 1f;
+        private bool muted;
 
         void Awake()
         {
@@ -103,7 +105,7 @@ namespace AxePath
                         windLp += a * (x - windLp);
                         m += windLp * 0.05f;
                     }
-                    m *= 0.5f;
+                    m *= 0.5f * MasterScale(masterGain, muted);
                     for (int c = 0; c < channels; c++) data[s + c] = m;
                 }
             }
@@ -118,11 +120,11 @@ namespace AxePath
             catch { }
         }
 
-        private void Noise_(float dur, float cutoff, float gain)
+        private void Noise_(float dur, float cutoff, float gain, float delay = 0f)
         {
             try
             {
-                lock (sync) noises.Add(new Noise { dur = dur, cutoff = cutoff, gain = gain });
+                lock (sync) noises.Add(new Noise { dur = dur, cutoff = cutoff, gain = gain, delay = delay });
             }
             catch { }
         }
@@ -141,10 +143,19 @@ namespace AxePath
             Tone_(160f, 0.1f, Square, 0.08f, 90f, 0f);
         }
 
-        public void PlayYelp()
+        // Axe on rock or metal: bright inharmonic clang, higher for metal.
+        public void PlayClang(float bright01)
         {
-            Tone_(640f, 0.16f, Saw, 0.16f, 180f, 0f);
-            Noise_(0.12f, 2400f, 0.1f);
+            float f = 1400f + 1200f * Mathf.Clamp01(bright01);
+            Tone_(f, 0.18f, Square, 0.12f, f * 0.5f, 0f);
+            Tone_(f * 2.7f, 0.1f, Square, 0.06f, f * 1.3f, 0f);
+            Noise_(0.05f, 4000f, 0.14f);
+        }
+
+        public void PlayYelp(float delaySecs = 0f)
+        {
+            Tone_(640f, 0.16f, Saw, 0.16f, 180f, delaySecs);
+            Noise_(0.12f, 2400f, 0.1f, delaySecs);
         }
 
         public void PlayKill()
@@ -213,5 +224,25 @@ namespace AxePath
 
         public void StartWind() { try { lock (sync) windOn = true; } catch { } }
         public void StopWind() { try { lock (sync) windOn = false; } catch { } }
+
+        // Master output scale, factored pure so EditMode tests can pin it.
+        // Mute is an independent gate: the slider never unmutes.
+        public static float MasterScale(float gain01, bool muted)
+        {
+            if (muted) return 0f;
+            return Mathf.Clamp01(gain01);
+        }
+
+        public float MasterGain
+        {
+            get { lock (sync) return masterGain; }
+            set { try { lock (sync) masterGain = Mathf.Clamp01(value); } catch { } }
+        }
+
+        public bool Muted
+        {
+            get { lock (sync) return muted; }
+            set { try { lock (sync) muted = value; } catch { } }
+        }
     }
 }

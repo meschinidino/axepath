@@ -30,7 +30,7 @@ words. This slice is one complete path: the axe.
    dulls the edge (9/chop, 6/wolf-hit; 0–100).
 4. Mind the wolves (hear walking at 30u, running at 90u; leash at
    150u): three at the den west of the path, two ranging the forest.
-   Three wounds kill you.
+   Three wounds kill you. A timed hop clears a lunge near its apex.
 5. Reach the unmarked cave. Cold dwarf while your edge is keen.
 6. Past 40 dullness, talk again: arrival, thaw to civil. He names the
    price: one ironwood log, past the cave to the east.
@@ -74,11 +74,14 @@ fireflies (lowlands + grove); current streaks texture the river.
 
 ## HUD and screens
 
-Crosshair dot (flashes on connected swings); health pips + 3-step
+Crosshair dot (warms gold when a swing would connect, flashes on
+connects); health pips + 3-step
 edge meter bottom-left; hands strip (axe/sketch/log) bottom-right;
 context prompt bottom-center within reach (3.4u, log 5u). No compass,
 no minimap, no damage numbers. Title with 3 save slots + controls
-card; pause overlay with resume, sensitivity slider, and quit to
+card; pause overlay with resume, sensitivity and volume sliders,
+mute toggle, and quit to title; staged boot shows a loading overlay
+naming each world stage; handhelds get a desktop-only notice on
 title; death screen with "wake as a new nobody"; dwarf-dead permanence
 note; session-only storage banner; strict save-import rejection modal.
 
@@ -87,16 +90,25 @@ note; session-only storage banner; strict save-import rejection modal.
 - Dullness reads in 3 channels: edge color chips, chop pitch drop,
   dwarf arrival line. No bare numbers for it.
 - Wolf hits read instantly: yelp + recoil + ember pulse + crosshair.
-  Every connect lands weight: hit-stop freeze, camera kick. Kills
-  confirm longer and lower; bites answer with their own sound.
+  Every connect lands weight: hit-stop freeze, camera kick. Blood
+  bursts from the wound (more on a kill). Kills confirm longer and
+  lower; bites answer with their own sound.
 - Wolf lunges telegraph: plant-and-crouch windup with a rising snarl,
   dodgeable by stepping out; a gated lunge snaps, never lands
-  silent; corpses keel over, eyes dead.
+  silent; corpses keel over, eyes dead, and linger 2.5s.
 - Chops land weight: trunk shudders, chips burst and settle, impact
   stops and kicks lighter than flesh; sharp edges crack, dull thud.
-- Swings read in 3 beats: windup pull-back, accelerating chop,
-  settle to rest. Every swing whooshes; impact still resolves on
-  click, inside the instant-read rule above.
+  Wooden walls chip without shuddering; rock and metal throw
+  sparks and clang instead ("Sparks fly."). Bursts erupt where the
+  eye sees contact: the look-line aims a confirmation ray at the
+  visual face, so bursts never stage beside the player on big
+  rocks or hide inside thin trunks.
+- Swings read in 3 beats: windup pull-back, accelerating chop
+  that sweeps through center to the crosshair, settle to rest.
+  Every swing whooshes on the click; impact
+  resolves at contact (k=0.62), when the axe visibly arrives — then
+  the wolf answers inside the instant-read rule above: flinch, flash,
+  knockback, and a yelp trailing the hit crack.
 - Trust shifts land inside the conversation that earns them.
 - No critical cue is audio-only: howls (15–60u from den) pair with a
   prompt; growls pair with eyes and posture.

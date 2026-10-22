@@ -18,6 +18,7 @@ Open `Builds/AxePath.app` (built locally, not committed), or grab
 | W A S D / arrows | Walk (Shift = run, forward only) |
 | Mouse | Look |
 | Left click | Swing the axe |
+| Space | Hop (clears a wolf lunge near the apex) |
 | E | Interact (take, talk, read) |
 | Esc | Pause / close panels (Esc again resumes) |
 
