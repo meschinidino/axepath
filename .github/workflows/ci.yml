@@ -120,7 +120,10 @@ jobs:
           echo '--- pre-cleanup status ---'
           git status --porcelain
           git checkout -- .
-          git clean -fdq -- Assets/ Packages/ ProjectSettings/
+          git clean -fdq -- Assets/ Packages/ ProjectSettings/ || {
+            echo 'retrying with sudo (the builder runs as root in docker)';
+            sudo git clean -fdq -- Assets/ Packages/ ProjectSettings/;
+          }
           echo '--- post-cleanup status ---'
           git status --porcelain
       - uses: game-ci/unity-builder@v6

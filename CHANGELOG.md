@@ -75,6 +75,9 @@ releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 - macOS builds and both test suites retry once in-job on failure
   (net for transient runner OOMs; genuine breaks still fail twice
   and loudly).
+- The build cleanup between attempts retries with sudo when a
+  killed attempt leaves root-owned builder byproducts (the builder
+  runs as root in docker) that plain git clean can't remove.
 
 ## [0.1.0] - 2026-10-21
 
