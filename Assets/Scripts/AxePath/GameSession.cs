@@ -69,6 +69,7 @@ namespace AxePath
 
         public State CurrentState { get; private set; }
         public WorldState W { get; private set; }
+        public TuningSet Tuning { get; private set; }
         public List<WolfUnit> Wolves { get; private set; }
         public PlayerController Player { get; private set; }
         public Hud Hud { get; private set; }
@@ -110,6 +111,8 @@ namespace AxePath
             this.wolfViews = wolfViews;
             this.npcView = npcView;
             saver = new Saver(new FileBackend());
+            Tuning = LoadTuning();
+            Player.Tuning = Tuning;
             Wolves = new List<WolfUnit>();
             for (int i = 0; i < world.spots.wolfHomes.Count; i++)
             {
@@ -118,11 +121,12 @@ namespace AxePath
                 {
                     brain = Logic.CreateWolf(home.x, home.z),
                     fx = new WolfFx(),
-                    hp = 2,
+                    hp = Tuning.wolfHp,
                     view = wolfViews[i],
                 };
                 Wolves.Add(unit);
                 wolfViews[i].Bind(actors.wolfPack[i], actors.wolfPackEyes[i], actors.wolfPackFurMats[i], unit.brain, unit.fx);
+                wolfViews[i].Tuning = Tuning;
             }
             npcView.Bind(actors.dwarf, actors.librarian);
             Player.OnStep += () => audio.PlayStep(Player.running);
@@ -137,6 +141,22 @@ namespace AxePath
             CurrentState = State.Title;
             Hud.RenderSlots((s) => saver.Describe(s), (s, info) => PickSlotWith(s, info));
             Hud.ShowTitle(true);
+        }
+
+        // Balance comes from tuning.json (Resources), edited as data.
+        // A missing or unreadable asset degrades to default balance.
+        private static TuningSet LoadTuning()
+        {
+            try
+            {
+                var asset = Resources.Load<TextAsset>("tuning");
+                if (asset == null || string.IsNullOrEmpty(asset.text)) return TuningSet.Default();
+                return TuningSet.FromJson(asset.text);
+            }
+            catch
+            {
+                return TuningSet.Default();
+            }
         }
 
         private void PickSlotWith(int s, SlotDesc info)
@@ -160,7 +180,7 @@ namespace AxePath
 
         public void NewGame(int s)
         {
-            W = Logic.CreateWorld();
+            W = Logic.CreateWorld(Tuning);
             saver.Save(s, Logic.SerializeWorld(W, Lines.LabelGen1Nobody));
             CommonStart(s);
         }
@@ -257,7 +277,7 @@ namespace AxePath
                 var home = world.spots.wolfHomes[i];
                 Wolves[i].brain = Logic.CreateWolf(home.x, home.z);
                 Wolves[i].fx = new WolfFx();
-                Wolves[i].hp = 2;
+                Wolves[i].hp = Tuning.wolfHp;
                 Wolves[i].view.Rebind(Wolves[i].brain, Wolves[i].fx);
             }
         }
@@ -395,7 +415,7 @@ namespace AxePath
             }
             if (t.id == "dwarf")
             {
-                var res = Logic.TalkDwarf(W);
+                var res = Logic.TalkDwarf(W, Tuning);
                 if (res.evt == "thaw")
                 {
                     Say("Dwarf", new List<string> { Lines.DwarfCold, Lines.DwarfArrival }, null);
@@ -414,7 +434,7 @@ namespace AxePath
                 {
                     if (W.ironwood.have >= 1 && W.axe.have)
                     {
-                        if (Logic.TurnInIronwood(W))
+                        if (Logic.TurnInIronwood(W, Tuning))
                         {
                             audio.PlaySharpen();
                             RefreshHud();
@@ -533,7 +553,7 @@ namespace AxePath
                     (UnityEngine.Random.value - 0.5f) * 720f,
                     (UnityEngine.Random.value - 0.5f) * 720f,
                     (UnityEngine.Random.value - 0.5f) * 720f);
-                chips.Add(new Chip { go = go, vel = vel, life = Tuning.ChipLifeSecs, spin = spin });
+                chips.Add(new Chip { go = go, vel = vel, life = Tuning.chipLifeSecs, spin = spin });
             }
         }
 
@@ -583,7 +603,7 @@ namespace AxePath
                     continue;
                 }
                 var pos = c.go.transform.localPosition;
-                ChipStep(ref pos, ref c.vel, dt, Tuning.ChipGravity);
+                ChipStep(ref pos, ref c.vel, dt, Tuning.chipGravity);
                 float gy = WorldBuilder.GroundH(pos.x, pos.z) + 0.03f;
                 if (pos.y < gy) { pos.y = gy; c.vel *= 0.4f; c.vel.y = 0f; }
                 c.go.transform.localPosition = pos;
@@ -598,14 +618,14 @@ namespace AxePath
                 var sh = treeShakes[i];
                 if (sh.tr == null) { treeShakes.RemoveAt(i); continue; }
                 sh.t += dt;
-                if (sh.t >= Tuning.TreeShudderSecs)
+                if (sh.t >= Tuning.treeShudderSecs)
                 {
                     sh.tr.localRotation = sh.baseRot;
                     treeShakes.RemoveAt(i);
                     continue;
                 }
-                float ax = ShudderAngle(sh.t, Tuning.TreeShudderSecs, Tuning.TreeShudderMag);
-                float az = ShudderAngle(sh.t + 0.13f, Tuning.TreeShudderSecs, Tuning.TreeShudderMag);
+                float ax = ShudderAngle(sh.t, Tuning.treeShudderSecs, Tuning.treeShudderMag);
+                float az = ShudderAngle(sh.t + 0.13f, Tuning.treeShudderSecs, Tuning.treeShudderMag);
                 sh.tr.localRotation = sh.baseRot * Quaternion.Euler(ax * 57.29578f, 0f, az * 57.29578f);
             }
         }
@@ -646,7 +666,7 @@ namespace AxePath
             foreach (var u in Wolves)
             {
                 if (!u.brain.alive) continue;
-                if (!Ahead(u.brain.pos.x, u.brain.pos.z, Tuning.AxeReach)) continue;
+                if (!Ahead(u.brain.pos.x, u.brain.pos.z, Tuning.axeReach)) continue;
                 float d = Gdist(p.x, p.z, u.brain.pos.x, u.brain.pos.z);
                 if (d < targetD) { targetD = d; target = u; }
             }
@@ -655,41 +675,41 @@ namespace AxePath
                 audio.PlayHit();
                 audio.PlayYelp();
                 Hud.FlashCross();
-                hitStop = Tuning.HitStopSecs;
-                Player.Kick(Tuning.HitShake);
+                hitStop = Tuning.hitStopSecs;
+                Player.Kick(Tuning.hitShake);
                 target.hp -= 1;
-                target.fx.hitT = Tuning.WolfHitSecs;
-                target.fx.flashT = Tuning.WolfFlashSecs;
+                target.fx.hitT = Tuning.wolfHitSecs;
+                target.fx.flashT = Tuning.wolfFlashSecs;
                 target.fx.flashed = true;
                 float wdx = target.brain.pos.x - p.x;
                 float wdz = target.brain.pos.z - p.z;
                 float wd = Mathf.Sqrt(wdx * wdx + wdz * wdz);
                 if (wd == 0f) wd = 1f;
                 target.fx.hitDir = new Vec2(wdx / wd, wdz / wd);
-                target.fx.knockT = Tuning.WolfHitSecs;
+                target.fx.knockT = Tuning.wolfHitSecs;
                 target.fx.knockDir = new Vec2(wdx / wd, wdz / wd);
-                wolfCooldown = Mathf.Max(wolfCooldown, Tuning.WolfStaggerSecs);
+                wolfCooldown = Mathf.Max(wolfCooldown, Tuning.wolfStaggerSecs);
                 if (target.hp <= 0)
                 {
                     target.brain.alive = false;
-                    Logic.UseAxe(W, "hit");
+                    Logic.UseAxe(W, "hit", Tuning);
                     RefreshHud();
                     Hud.SetPrompt(Lines.PromptWolfStill, 2.2f);
-                    hitStop = Tuning.KillStopSecs;
-                    Player.Kick(Tuning.KillShake);
+                    hitStop = Tuning.killStopSecs;
+                    Player.Kick(Tuning.killShake);
                     audio.PlayKill();
-                    Hud.FlashCross(Tuning.KillFlashSecs);
+                    Hud.FlashCross(Tuning.killFlashSecs);
                 }
                 else
                 {
-                    Logic.UseAxe(W, "chop");
+                    Logic.UseAxe(W, "chop", Tuning);
                     RefreshHud();
                     Hud.SetPrompt(Lines.PromptWolfSnarls, 1.6f);
                 }
                 return;
             }
             var ds = world.spots.dwarf;
-            if (W.dwarfAlive && Ahead(ds.x, ds.z, Tuning.AxeReach + 0.6f))
+            if (W.dwarfAlive && Ahead(ds.x, ds.z, Tuning.axeReach + 0.6f))
             {
                 if (W.trust == Trust.Sharp)
                 {
@@ -718,14 +738,14 @@ namespace AxePath
                 return;
             }
             if (!W.dwarfAlive) return;
-            var tree = NearestTree(Tuning.AxeReach);
+            var tree = NearestTree(Tuning.axeReach);
             if (tree.HasValue)
             {
-                Logic.UseAxe(W, "chop");
+                Logic.UseAxe(W, "chop", Tuning);
                 audio.PlayThunk(W.axe.dullness / 100f);
                 Hud.FlashCross();
-                hitStop = Tuning.ChopStopSecs;
-                Player.Kick(Tuning.ChopShake);
+                hitStop = Tuning.chopStopSecs;
+                Player.Kick(Tuning.chopShake);
                 BurstChips(tree.Value, p);
                 ShakeTree(tree.Value);
                 RefreshHud();
@@ -837,7 +857,7 @@ namespace AxePath
         public void Wake()
         {
             Hud.CloseDeath();
-            Logic.Die(W, pendingDeathPos ?? new DropPos { x = 0f, z = 42f });
+            Logic.Die(W, pendingDeathPos ?? new DropPos { x = 0f, z = 42f }, Tuning);
             pendingDeathPos = null;
             Player.Respawn(new Vector3(world.spots.spawn.x, 0f, world.spots.spawn.z));
             ResetPack();
@@ -963,7 +983,7 @@ namespace AxePath
             // you still wound at the lone-wolf rate.
             foreach (var u in Wolves)
             {
-                var wres = Logic.WolfStep(u.brain, p.x, p.z, Player.running, W.skill.noiseMul, dt, null);
+                var wres = Logic.WolfStep(u.brain, p.x, p.z, Player.running, W.skill.noiseMul, dt, Tuning);
                 foreach (var ev in wres.events)
                 {
                     if (ev == "growl")
@@ -979,8 +999,8 @@ namespace AxePath
                         wolfCooldown = 1.2f;
                         audio.PlayHurt();
                         Hud.HurtFlash();
-                        hitStop = Tuning.HurtStopSecs;
-                        Player.Kick(Tuning.HurtShake);
+                        hitStop = Tuning.hurtStopSecs;
+                        Player.Kick(Tuning.hurtShake);
                         if (Logic.DamagePlayer(W, 1))
                         {
                             Die();
@@ -999,7 +1019,7 @@ namespace AxePath
                 }
                 if (wres.hasMove)
                 {
-                    float sp = u.brain.state == "chase" ? Tuning.WolfChaseSpeed : 2.2f;
+                    float sp = u.brain.state == "chase" ? Tuning.wolfChaseSpeed : 2.2f;
                     u.brain.pos.x += wres.move.x * sp * dt;
                     u.brain.pos.z += wres.move.z * sp * dt;
                 }

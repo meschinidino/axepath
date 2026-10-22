@@ -48,9 +48,10 @@ After building on macOS, strip quarantine once:
 
 ## Test it
 
-- **EditMode (40):** pure game rules in `GameLogic.cs` — trust ladder,
+- **EditMode (48):** pure game rules in `GameLogic.cs` — trust ladder,
   dulling, wolf brain, saves — plus the axe swing, shake, shudder,
-  and chip math pins. No scene objects needed.
+  and chip math pins, and the tuning-as-data loader checks.
+  No scene objects needed.
 - **PlayMode (32):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
   death → reclaim); `WorldShots` asserts world structure and captures
