@@ -12,6 +12,8 @@ releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 - macOS builds and both test suites retry once in-job on failure
   (net for transient runner OOMs; genuine breaks still fail twice
   and loudly).
+- Editor MCP bridge boot falls back to stdio transport when the HTTP
+  relay is unreachable, so agent sessions connect without UI clicks.
 
 ## [0.1.0] - 2026-10-21
 
