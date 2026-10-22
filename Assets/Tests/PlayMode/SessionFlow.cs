@@ -11,6 +11,12 @@ using AxePath;
 
 public class SessionFlow
 {
+    [UnitySetUp]
+    public IEnumerator WaitForBoot()
+    {
+        yield return TestBoot.WaitForReady();
+    }
+
     private static float Face(float fx, float fz, float tx, float tz)
     {
         return Mathf.Atan2(-(tx - fx), -(tz - fz));
@@ -82,6 +88,7 @@ public class SessionFlow
         // Tree chop at the landmark pine.
         S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.AreEqual(1, S.W.skill.chops);
         Assert.AreEqual(9f, S.W.axe.dullness);
         Assert.AreEqual("Chips fly.", S.Hud.PromptText());
@@ -93,10 +100,12 @@ public class SessionFlow
         S.Wolves[0].brain.pos = new Vec2(-70f, 2f);
         S.Player.Teleport(-70f, 3.5f, Face(-70f, 3.5f, -70f, 2f));
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.AreEqual(1, S.Wolves[0].hp);
         Assert.AreEqual("The wolf snarls, wounded.", S.Hud.PromptText());
         yield return new WaitForSeconds(0.8f);
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.IsFalse(S.Wolves[0].brain.alive);
         Assert.AreEqual(1, S.W.skill.kills);
         Assert.AreEqual("The wolf is still. The forest feels larger.", S.Hud.PromptText());
@@ -373,6 +382,7 @@ public class SessionFlow
         // holds its position for a frame — 0.06s of stop can never expire
         // inside one 0.05s-clamped frame.
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.AreEqual(1, S.Wolves[0].hp);
         float stop1 = S.HitStop;
         Assert.Greater(stop1, 0f);
@@ -388,6 +398,7 @@ public class SessionFlow
         // Kill: longer stop, wolf still, no stray bites interfered, and
         // the shake fully decays.
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.IsFalse(S.Wolves[0].brain.alive);
         Assert.Greater(S.HitStop, stop1);
         Assert.Greater(S.Player.Trauma, 0f);
@@ -407,14 +418,159 @@ public class SessionFlow
         int c0 = S.W.skill.chops;
         S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
         S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
         Assert.AreEqual(c0 + 1, S.W.skill.chops);
         Assert.Greater(S.HitStop, 0f);
         Assert.Greater(S.Player.Trauma, 0f);
-        Assert.Greater(S.ChipCount, 0);
+        Assert.Greater(S.MotesOf(MoteKind.Chip), 0);
         Assert.Greater(S.TreeShakeCount, 0);
         yield return new WaitForSeconds(1.5f);
-        Assert.AreEqual(0, S.ChipCount);
+        Assert.AreEqual(0, S.MoteCount);
         Assert.AreEqual(0, S.TreeShakeCount);
+    }
+
+    [UnityTest]
+    public IEnumerator VolumeAndMuteWiring()
+    {
+        var S = Game.Session;
+        S.SetVolume(0.5f);
+        Assert.AreEqual(0.5f, S.Audio.MasterGain, 0.001f);
+        Assert.AreEqual(0.5f, PlayerPrefs.GetFloat(GameSession.VolumePrefKey), 0.001f);
+        S.SetVolume(2f);
+        Assert.AreEqual(1f, S.Audio.MasterGain, 0.001f);
+        bool before = S.Audio.Muted;
+        S.ToggleMute();
+        Assert.AreNotEqual(before, S.Audio.Muted);
+        Assert.AreEqual(S.Audio.Muted ? 1 : 0, PlayerPrefs.GetInt(GameSession.MutePrefKey));
+        S.ToggleMute();
+        Assert.AreEqual(before, S.Audio.Muted);
+        S.SetVolume(1f);
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator LoadingHiddenAfterBoot()
+    {
+        var S = Game.Session;
+        Assert.IsFalse(S.Hud.IsLoadingOpen(), "loading overlay stuck open after boot");
+        Assert.IsFalse(GameSession.IsHandheld(), "editor is not a handheld");
+        yield return null;
+    }
+
+    [UnityTest]
+    public IEnumerator ImpactWaitsForContact()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        int c0 = S.W.skill.chops;
+        S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
+        S.TryAttack();
+        Assert.AreEqual(c0, S.W.skill.chops, "impact must not resolve on click");
+        Assert.AreEqual(0f, S.HitStop);
+        yield return TestBoot.SwingToContact(S);
+        Assert.AreEqual(c0 + 1, S.W.skill.chops);
+        Assert.Greater(S.MotesOf(MoteKind.Chip), 0);
+    }
+
+    [UnityTest]
+    public IEnumerator JumpArc()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        Assert.IsTrue(S.Player.TryJump());
+        Assert.IsFalse(S.Player.TryJump(), "no double jump");
+        float t0 = Time.realtimeSinceStartup;
+        while (S.Player.AirY <= 0f && Time.realtimeSinceStartup - t0 < 2f) yield return null;
+        Assert.Greater(S.Player.AirY, 0f, "never left the ground");
+        t0 = Time.realtimeSinceStartup;
+        while (S.Player.AirY > 0f && Time.realtimeSinceStartup - t0 < 3f) yield return null;
+        Assert.AreEqual(0f, S.Player.AirY);
+    }
+
+    [UnityTest]
+    public IEnumerator CrosshairHotInReach()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f));
+        yield return null;
+        Assert.IsTrue(S.Hud.IsCrossHot(), "pine in reach should heat the crosshair");
+        S.Player.Teleport(0f, 152.5f, Face(0f, 152.5f, 0f, 150f) + Mathf.PI);
+        yield return null;
+        Assert.IsFalse(S.Hud.IsCrossHot(), "facing away should cool the crosshair");
+    }
+
+    [UnityTest]
+    public IEnumerator WolfHitBurstsBlood()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        S.Wolves[0].brain.state = "chase";
+        S.Wolves[0].brain.pos = new Vec2(-70f, 2f);
+        S.Player.Teleport(-70f, 3.5f, Face(-70f, 3.5f, -70f, 2f));
+        S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
+        Assert.AreEqual(1, S.Wolves[0].hp);
+        Assert.Greater(S.MotesOf(MoteKind.Blood), 0);
+        Assert.Greater(S.MotePosOf(MoteKind.Blood).z, 1.9f);
+        Assert.AreEqual(0, S.MotesOf(MoteKind.Chip));
+        Assert.AreEqual(0, S.MotesOf(MoteKind.Spark));
+    }
+
+    [UnityTest]
+    public IEnumerator ForgeStrikeThrowsSparks()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        foreach (var w in S.Wolves) { w.brain.state = "idle"; w.brain.pos = new Vec2(-70f, 0f); }
+        S.Player.Teleport(5f, -312.5f, Face(5f, -312.5f, 5f, -315f));
+        S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
+        Assert.Greater(S.MotesOf(MoteKind.Spark), 0);
+        Assert.Less(S.MotePosOf(MoteKind.Spark).z, -313.9f, "sparks erupt at the forge face, past the 313.6 rim");
+        Assert.AreEqual(0, S.MotesOf(MoteKind.Chip));
+        Assert.AreEqual(0, S.MotesOf(MoteKind.Blood));
+        Assert.AreEqual("Sparks fly.", S.Hud.PromptText());
+    }
+
+    [UnityTest]
+    public IEnumerator MillWallBurstsChipsWithoutShake()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        foreach (var w in S.Wolves) { w.brain.state = "idle"; w.brain.pos = new Vec2(-70f, 0f); }
+        S.Player.Teleport(104f, 184f, Face(104f, 184f, 104f, 178f));
+        S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
+        Assert.Greater(S.MotesOf(MoteKind.Chip), 0);
+        Assert.Less(S.MotePosOf(MoteKind.Chip).z, 181.5f, "chips erupt at the mill face, past the 182.5 rim");
+        Assert.AreEqual(0, S.TreeShakeCount, "walls don't shudder — chips must come from the wall, not a tree");
+        Assert.AreEqual("Chips fly.", S.Hud.PromptText());
+    }
+
+    [UnityTest]
+    public IEnumerator WolfCorpseLingers()
+    {
+        var S = Game.Session;
+        S.NewGame(4);
+        S.W.axe.have = true;
+        for (int i = 1; i < S.Wolves.Count; i++) { S.Wolves[i].brain.state = "idle"; S.Wolves[i].brain.pos = new Vec2(-70f, 70f); }
+        S.Wolves[0].brain.state = "chase";
+        S.Wolves[0].brain.pos = new Vec2(-70f, 2f);
+        S.Player.Teleport(-70f, 3.5f, Face(-70f, 3.5f, -70f, 2f));
+        S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
+        yield return new WaitForSeconds(0.8f);
+        S.TryAttack();
+        yield return TestBoot.SwingToContact(S);
+        Assert.IsFalse(S.Wolves[0].brain.alive);
+        Assert.IsFalse(S.Wolves[0].fx.corpseGone, "fresh kill must still lie there");
+        yield return new WaitForSeconds(3f);
+        Assert.IsTrue(S.Wolves[0].fx.corpseGone, "corpse clears after a couple seconds");
     }
 
 }

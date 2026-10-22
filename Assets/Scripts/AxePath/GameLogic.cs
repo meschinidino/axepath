@@ -36,6 +36,12 @@ namespace AxePath
         public const float WolfFlashSecs = 0.22f;
         public const float WolfKnockSpeed = 3.2f;
         public const float WolfStaggerSecs = 0.9f;
+        public const float WolfFlinchSecs = 0.3f;
+        public const float YelpDelaySecs = 0.08f;
+        public const float CorpseSecs = 2.5f;
+        public const float JumpSpeed = 5.5f;
+        public const float JumpGravity = 22f;
+        public const float WolfLungeHeight = 0.5f;
         public const float HitStopSecs = 0.06f;
         public const float KillStopSecs = 0.12f;
         public const float HurtStopSecs = 0.05f;
@@ -100,7 +106,7 @@ namespace AxePath
         public const string TitleHead = "AXE PATH";
         public const string TitleSub = "You are no one. The forest does not care. Walk anyway.";
         public const string TitleExport = "Export current slot";
-        public const string TitleControls = "WASD / arrows — move · Mouse — look · Shift — run · E — talk, take, read · Click — swing, advance";
+        public const string TitleControls = "WASD / arrows — move · Mouse — look · Shift — run · E — talk, take, read · Click — swing, advance · Space — jump";
         public const string BookClose = "Close (E)";
         public const string ModalOk = "OK";
         public const string ModalCancel = "Cancel";
@@ -110,6 +116,11 @@ namespace AxePath
         public const string PauseResume = "Resume (Esc)";
         public const string PauseSensitivity = "Mouse sensitivity";
         public const string PauseQuit = "Save and quit to title";
+        public const string PauseVolume = "Volume";
+        public const string PauseMute = "Mute";
+        public const string PauseUnmute = "Unmute";
+        public const string DesktopOnlyTitle = "Desktop and mouse required";
+        public const string DesktopOnlyBody = "Axe Path needs a keyboard and mouse — touch isn't supported. The forest will wait.";
         public const string LockHint = "Click to look around";
         public const string SlotPrefix = "Slot ";
         public const string SlotEmpty = " — empty, begin as a nobody";
@@ -141,7 +152,9 @@ namespace AxePath
         public const string PromptNoAxe = "No axe. The lumber yard has one.";
         public const string PromptWolfStill = "The wolf is still. The forest feels larger.";
         public const string PromptWolfSnarls = "The wolf snarls, wounded.";
+        public const string PromptDodged = "The wolf snaps at empty air.";
         public const string PromptChips = "Chips fly.";
+        public const string PromptSparks = "Sparks fly.";
         public const string DwarfWrist = "The dwarf catches your wrist. “Not like this. Not ever.”";
         public const string DeathCopyPrefix = "Three wounds. The forest keeps you. Your axe lies where you fell, under a cairn of stones. Death ";
         public const string BannerNoSave = "Progress will NOT be saved — storage refused. This run counts for fun only.";
@@ -509,6 +522,18 @@ namespace AxePath
                 return true;
             }
             return false;
+        }
+
+        // A timed hop clears the teeth: lunges only connect below this height.
+        public static bool WolfHitsPlayer(float playerAirY, float lungeHeight)
+        {
+            return playerAirY < lungeHeight;
+        }
+
+        // Focus loss pauses live play only: title and pause need no rescue.
+        public static bool ShouldAutoPause(bool playing, bool focus)
+        {
+            return playing && !focus;
         }
 
         public static bool Die(WorldState w, DropPos pos)

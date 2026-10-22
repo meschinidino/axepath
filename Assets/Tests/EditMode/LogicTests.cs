@@ -420,3 +420,16 @@ public class WolfBrainTests
         Assert.AreEqual("warn", w2.state);
     }
 }
+
+[TestFixture]
+public class FocusPauseTests
+{
+    [Test]
+    public void FocusLossPausesLivePlayOnly()
+    {
+        Assert.IsTrue(Logic.ShouldAutoPause(true, false));
+        Assert.IsFalse(Logic.ShouldAutoPause(true, true));
+        Assert.IsFalse(Logic.ShouldAutoPause(false, false));
+        Assert.IsFalse(Logic.ShouldAutoPause(false, true));
+    }
+}

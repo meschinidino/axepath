@@ -9,6 +9,12 @@ using AxePath;
 
 public class JourneyPacing
 {
+    [UnitySetUp]
+    public IEnumerator WaitForBoot()
+    {
+        yield return TestBoot.WaitForReady();
+    }
+
     private static float Face(float fx, float fz, float tx, float tz)
     {
         return Mathf.Atan2(-(tx - fx), -(tz - fz));

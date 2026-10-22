@@ -23,12 +23,18 @@ namespace AxePath
         }
     }
 
+    // What the axe strikes: wood bursts chips, stone and metal
+    // throw sparks. Tagged at placement — radius can't tell a wooden
+    // hut (r=3.2) from a rock (r=2.5).
+    public enum SurfaceKind { Wood, Stone, Metal }
+
     public struct Circle
     {
         public float x;
         public float z;
         public float r;
-        public Circle(float x, float z, float r) { this.x = x; this.z = z; this.r = r; }
+        public SurfaceKind kind;
+        public Circle(float x, float z, float r, SurfaceKind kind) { this.x = x; this.z = z; this.r = r; this.kind = kind; }
     }
 
     public class Spots
@@ -53,6 +59,7 @@ namespace AxePath
         public GameObject bookMesh;
         public GameObject ironLog;
         public GameObject cairn;
+        public List<GameObject> landmarkPines = new List<GameObject>();
         public Light forgeLight;
         public Light mouthLight;
         public List<GameObject> smokePuffs = new List<GameObject>();
@@ -329,7 +336,7 @@ namespace AxePath
                 this.R = R;
             }
 
-            public void Solid(float x, float z, float r) { world.colliders.Add(new Circle(x, z, r)); }
+            public void Solid(float x, float z, float r, SurfaceKind kind) { world.colliders.Add(new Circle(x, z, r, kind)); }
 
             // Overlapping discs stack at different top heights (default
             // 0.04): coplanar neighbors z-fight, worse at long range.
@@ -343,7 +350,7 @@ namespace AxePath
 
             public void Peak(float x, float z, float r, float h)
             {
-                world.refs.peaks.Add(new Circle(x, z, r));
+                world.refs.peaks.Add(new Circle(x, z, r, SurfaceKind.Stone));
                 var g = new GameObject("Peak");
                 g.transform.SetParent(R, false);
                 g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
@@ -378,23 +385,67 @@ namespace AxePath
             }
         }
 
+        // Staged construction for the boot loading screen: the stager runs
+        // one Step per frame. Stage order and RNG draws match Build exactly.
+        public class StagedBuild
+        {
+            public static readonly string[] StageNames = new string[]
+            {
+                "Laying the ground",
+                "Raising the village",
+                "Running the river",
+                "Growing the forest",
+                "Cutting the cave",
+                "Lighting the grove",
+                "Raising the peaks",
+                "Filling the wilds",
+                "Scattering petals",
+                "Merging statics",
+            };
+
+            public readonly GameWorld world;
+            private readonly BuildCtx ctx;
+            private int stage;
+
+            public int StageCount { get { return StageNames.Length; } }
+            public int Stage { get { return stage; } }
+
+            public StagedBuild(Transform parent)
+            {
+                world = new GameWorld();
+                var root = new GameObject("World");
+                root.transform.SetParent(parent, false);
+                world.root = root;
+                ctx = new BuildCtx(world, root.transform);
+            }
+
+            // Runs the next stage. Returns true while stages remain after it.
+            public bool Step()
+            {
+                switch (stage)
+                {
+                    case 0: BuildShared(ctx); break;
+                    case 1: BuildVillage(ctx); break;
+                    case 2: BuildRiver(ctx); break;
+                    case 3: BuildForest(ctx); break;
+                    case 4: BuildCave(ctx); break;
+                    case 5: BuildGrove(ctx); break;
+                    case 6: BuildBackdrop(ctx); break;
+                    case 7: BuildInfill(ctx); break;
+                    case 8: BuildFlowers(ctx); break;
+                    case 9: MergeStatics(ctx); break;
+                    default: break;
+                }
+                stage++;
+                return stage < StageNames.Length;
+            }
+        }
+
         public static GameWorld Build(Transform parent)
         {
-            var world = new GameWorld();
-            var root = new GameObject("World");
-            root.transform.SetParent(parent, false);
-            world.root = root;
-            var ctx = new BuildCtx(world, root.transform);
-            BuildShared(ctx);
-            BuildVillage(ctx);
-            BuildRiver(ctx);
-            BuildForest(ctx);
-            BuildCave(ctx);
-            BuildGrove(ctx);
-            BuildBackdrop(ctx);
-            BuildInfill(ctx);
-            BuildFlowers(ctx);
-            return world;
+            var b = new StagedBuild(parent);
+            while (b.Step()) { }
+            return b.world;
         }
 
         private static void BuildShared(BuildCtx ctx)
@@ -437,7 +488,7 @@ namespace AxePath
                     var log = MeshUtil.Tapered(R, "Log", logMesh, 0x5a4630, lx, 0.4f + (i == 2 ? 0.62f : 0f), lz + (i == 0 ? -0.4f : i == 1 ? 0.4f : 0f));
                     log.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
                 }
-                ctx.Solid(lx, lz, 2.2f);
+                ctx.Solid(lx, lz, 2.2f, SurfaceKind.Wood);
             }
             var stand = new GameObject("Stand");
             stand.transform.SetParent(R, false);
@@ -452,7 +503,7 @@ namespace AxePath
             var handleMesh = MeshUtil.TaperMesh(0.05f, 0.06f, 1.1f);
             MeshUtil.Tapered(yardAxe.transform, "Handle", handleMesh, 0x6b5136, 0f, 0f, 0f);
             MeshUtil.Box(yardAxe.transform, "Head", 0.34f, 0.22f, 0.08f, 0x9aa0a6, 0.14f, 0.42f, 0f);
-            ctx.Solid(-30f, 180f, 0.9f);
+            ctx.Solid(-30f, 180f, 0.9f, SurfaceKind.Wood);
             refs.axeMesh = yardAxe;
 
             // Book nook: open shelves under a cap, replacing the old
@@ -478,7 +529,7 @@ namespace AxePath
             }
             MeshUtil.Box(nook.transform, "Lectern", 0.7f, 1.1f, 0.5f, 0x3a2f22, 0f, 0.55f, 1.2f);
             refs.bookMesh = MeshUtil.Box(nook.transform, "Book", 0.5f, 0.1f, 0.36f, 0xd9cfae, 0f, 1.15f, 1.2f);
-            ctx.Solid(35f, 190f, 2.6f);
+            ctx.Solid(35f, 190f, 2.6f, SurfaceKind.Wood);
 
             // Two village huts.
             var hutRoofMesh = MeshUtil.TaperMesh(0.02f, 3.1f, 1.8f);
@@ -493,7 +544,7 @@ namespace AxePath
                 MeshUtil.Box(hut.transform, "Walls", 4f, 2.4f, 3.4f, 0x4f4234, 0f, 1.2f, 0f);
                 var hr = MeshUtil.Tapered(hut.transform, "Roof", hutRoofMesh, 0x3a2f22, 0f, 3.3f, 0f);
                 hr.transform.localRotation = Quaternion.Euler(0f, 45f, 0f);
-                ctx.Solid(hx, hz, 3.2f);
+                ctx.Solid(hx, hz, 3.2f, SurfaceKind.Wood);
             }
         }
 
@@ -635,7 +686,7 @@ namespace AxePath
             var millRoofMesh = MeshUtil.TaperMesh(0.02f, 4.6f, 2.4f);
             var mr = MeshUtil.Tapered(mill.transform, "Roof", millRoofMesh, 0x3a2f22, 0f, 5.2f, 0f);
             mr.transform.localRotation = Quaternion.Euler(0f, 45f, 0f);
-            ctx.Solid(104f, 178f, 4.5f);
+            ctx.Solid(104f, 178f, 4.5f, SurfaceKind.Wood);
             ctx.Dirt(104f, 178f, 6f);
             var wheel = new GameObject("MillWheel");
             wheel.transform.SetParent(R, false);
@@ -728,7 +779,7 @@ namespace AxePath
                 uint canopyCol = pick == 0 ? 0x41704au : (pick == 1 ? 0x2e5233u : 0x38663bu);
                 MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, canopyCol, 0f, 5.4f, 0f);
             }
-            ctx.Solid(x, z, 0.5f);
+            ctx.Solid(x, z, 0.5f, SurfaceKind.Wood);
         }
 
         private static void BuildForest(BuildCtx ctx)
@@ -778,9 +829,10 @@ namespace AxePath
                 var g = new GameObject("LandmarkPine");
                 g.transform.SetParent(R, false);
                 g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
+                ctx.world.refs.landmarkPines.Add(g);
                 MeshUtil.Tapered(g.transform, "Trunk", landTrunk, 0x4a3a28, 0f, 3.3f, 0f);
                 MeshUtil.Tapered(g.transform, "Canopy", landCanopy, 0x35603a, 0f, 10.5f, 0f);
-                ctx.Solid(x, z, 0.8f);
+                ctx.Solid(x, z, 0.8f, SurfaceKind.Wood);
             }
 
             // Split rock.
@@ -788,7 +840,7 @@ namespace AxePath
             rock1.transform.localRotation = Quaternion.Euler(0f, 30f, 8f);
             var rock2 = MeshUtil.Box(R, "Rock", 4.8f, 3.9f, 4.2f, 0x4a5058, 14.5f, GroundH(14.5f, 28f) + 1.9f, 28f);
             rock2.transform.localRotation = Quaternion.Euler(0f, -20f, -6f);
-            ctx.Solid(10f, 25f, 6f);
+            ctx.Solid(10f, 25f, 6f, SurfaceKind.Stone);
 
             // Waystone: a rune-cut standing stone where the middle leg
             // bends, so each leg of the climb gets its own landmark.
@@ -800,7 +852,7 @@ namespace AxePath
             var wsrune = MeshUtil.Box(waystone.transform, "Rune", 0.5f, 0.9f, 0.1f, 0xd9a441, 0f, 3f, 0.78f);
             wsrune.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xd9a441);
             refs.waystonePos = new Vec2(-10f, -80f);
-            ctx.Solid(-10f, -80f, 2.5f);
+            ctx.Solid(-10f, -80f, 2.5f, SurfaceKind.Stone);
             ctx.Dirt(-10f, -80f, 6f);
 
             // Axe blazes on trunks along the path.
@@ -862,23 +914,23 @@ namespace AxePath
             MeshUtil.Box(R, "ArchJamb", 2f, 13f, 3f, stone, -9.5f, gy + 6.5f, -278f);
             MeshUtil.Box(R, "ArchJamb", 2f, 13f, 3f, stone, 9.5f, gy + 6.5f, -278f);
             MeshUtil.Box(R, "ArchLintel", 23f, 3f, 4f, stone, 0f, gy + 13.5f, -278f);
-            ctx.Solid(-13f, -285f, 7f);
-            ctx.Solid(-13f, -302f, 7f);
-            ctx.Solid(-13f, -319f, 7f);
-            ctx.Solid(13f, -285f, 7f);
-            ctx.Solid(13f, -302f, 7f);
-            ctx.Solid(13f, -319f, 7f);
-            ctx.Solid(-10f, -329f, 5f);
-            ctx.Solid(0f, -329f, 5f);
-            ctx.Solid(10f, -329f, 5f);
+            ctx.Solid(-13f, -285f, 7f, SurfaceKind.Stone);
+            ctx.Solid(-13f, -302f, 7f, SurfaceKind.Stone);
+            ctx.Solid(-13f, -319f, 7f, SurfaceKind.Stone);
+            ctx.Solid(13f, -285f, 7f, SurfaceKind.Stone);
+            ctx.Solid(13f, -302f, 7f, SurfaceKind.Stone);
+            ctx.Solid(13f, -319f, 7f, SurfaceKind.Stone);
+            ctx.Solid(-10f, -329f, 5f, SurfaceKind.Stone);
+            ctx.Solid(0f, -329f, 5f, SurfaceKind.Stone);
+            ctx.Solid(10f, -329f, 5f, SurfaceKind.Stone);
             // Front corners of the side walls, tucked just inside the
             // face plane (z=-277): centered ON the face they jutted 4u
             // into open ground, an invisible wall 3.85u short of the
             // guide mark. r=4.2 still caps both front corners (corner
             // reach 4.47 < 4.65 with the 0.45 player radius) while the
             // mark clears to 2.05u; the mouth stays open.
-            ctx.Solid(-13f, -279f, 4.2f);
-            ctx.Solid(13f, -279f, 4.2f);
+            ctx.Solid(-13f, -279f, 4.2f, SurfaceKind.Stone);
+            ctx.Solid(13f, -279f, 4.2f, SurfaceKind.Stone);
             // No glow quad here: Unlit/Transparent renders opaque white and
             // walled the mouth shut for anyone inside looking out. The
             // MouthLight below carries the ember look on its own.
@@ -899,29 +951,29 @@ namespace AxePath
             // reads as a solid wall from the mouth (walkable straight
             // through). Rock starts behind the forge, ~44u deep.
             ctx.RockCone(-58f, -296f, 42f, 95f, gy - 2f, false);
-            ctx.Solid(-58f, -296f, 21f);
+            ctx.Solid(-58f, -296f, 21f, SurfaceKind.Stone);
             // East flank stays narrow: the grove footpath threads past it,
             // and the visual cone (not just the collider) must clear the
             // corridor, or walkers clip through the mountainside.
             ctx.RockCone(66f, -284f, 30f, 85f, gy - 2f, false);
-            ctx.Solid(66f, -284f, 15f);
+            ctx.Solid(66f, -284f, 15f, SurfaceKind.Stone);
             ctx.RockCone(0f, -375f, 55f, 130f, gy - 2f, true);
             refs.cavePeak = new Vec2(0f, -375f);
             refs.cavePeakR = 55f;
             refs.cavePeakH = 130f;
             ctx.RockCone(-35f, -368f, 55f, 120f, gy - 2f, true);
-            ctx.Solid(-35f, -368f, 27f);
+            ctx.Solid(-35f, -368f, 27f, SurfaceKind.Stone);
             // North-right cone stays compact and back: the grove and its
             // light live in the dell south-east of it, and a fat cone here
             // swallows both the grove and the wayfinding glow.
             ctx.RockCone(20f, -385f, 40f, 120f, gy - 2f, true);
-            ctx.Solid(20f, -385f, 20f);
+            ctx.Solid(20f, -385f, 20f, SurfaceKind.Stone);
             ctx.RockCone(-75f, -345f, 45f, 100f, gy - 2f, true);
-            ctx.Solid(-75f, -345f, 22f);
+            ctx.Solid(-75f, -345f, 22f, SurfaceKind.Stone);
             // Far-east cone: the river threads the gap between this and the
             // north-right cone on its way down from the heights.
             ctx.RockCone(150f, -380f, 50f, 110f, gy - 2f, true);
-            ctx.Solid(150f, -380f, 25f);
+            ctx.Solid(150f, -380f, 25f, SurfaceKind.Stone);
 
             // Forge, anvil.
             var forge = new GameObject("Forge");
@@ -930,7 +982,7 @@ namespace AxePath
             MeshUtil.Box(forge.transform, "Body", 1.8f, 1.1f, 1.2f, 0x3a3f46, 0f, 0.55f, 0f);
             var coals = MeshUtil.Box(forge.transform, "Coals", 1.4f, 0.25f, 0.9f, 0xff7a2a, 0f, 1.15f, 0f);
             coals.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xff7a2a);
-            ctx.Solid(5f, -315f, 1.4f);
+            ctx.Solid(5f, -315f, 1.4f, SurfaceKind.Metal);
             var forgeLightGo = new GameObject("ForgeLight");
             forgeLightGo.transform.SetParent(R, false);
             forgeLightGo.transform.localPosition = new Vector3(5f, gy + 4f, -315f);
@@ -945,7 +997,7 @@ namespace AxePath
             anvil.transform.localPosition = new Vector3(1f, gy, -318f);
             MeshUtil.Box(anvil.transform, "Base", 0.5f, 0.5f, 0.5f, 0x2c2f34, 0f, 0.25f, 0f);
             MeshUtil.Box(anvil.transform, "Top", 1.1f, 0.28f, 0.4f, 0x3a3f46, 0f, 0.62f, 0f);
-            ctx.Solid(1f, -318f, 0.85f);
+            ctx.Solid(1f, -318f, 0.85f, SurfaceKind.Metal);
 
             // Chimney over the forge: the smoke gets a visible source and
             // rises clear of the rock instead of up the peak's silhouette.
@@ -994,7 +1046,7 @@ namespace AxePath
                 var iw = MeshUtil.Tapered(R, "Ironwood", ironMesh, 0xcfc4a8, x, GroundH(x, z) + 2.75f, z);
                 iw.GetComponent<Renderer>().sharedMaterial = ironBark;
                 MeshUtil.Tapered(R, "IronCrown", ironCrownMesh, 0x1f3a2a, x, GroundH(x, z) + 6.4f, z);
-                ctx.Solid(x, z, 0.45f);
+                ctx.Solid(x, z, 0.45f, SurfaceKind.Wood);
             }
             var ironLogMesh = MeshUtil.TaperMesh(0.32f, 0.32f, 2.6f);
             var ironLog = MeshUtil.Tapered(R, "IronLog", ironLogMesh, 0xcfc4a8, 72f, GroundH(72f, -340f) + 0.33f, -340f);
@@ -1053,7 +1105,7 @@ namespace AxePath
             {
                 var t = MeshUtil.Box(R, "Talus", talus[i, 2], talus[i, 2] * 0.8f, talus[i, 2], 0x5a6068, talus[i, 0], GroundH(talus[i, 0], talus[i, 1]) + talus[i, 2] * 0.35f, talus[i, 1]);
                 t.transform.localRotation = Quaternion.Euler(0f, i * 37f, 0f);
-                ctx.Solid(talus[i, 0], talus[i, 1], talus[i, 2] * 0.7f);
+                ctx.Solid(talus[i, 0], talus[i, 1], talus[i, 2] * 0.7f, SurfaceKind.Stone);
             }
             // (No footprint colliders: the peaks stand outside the bounds,
             // and the cave walls below carry their own.)
@@ -1129,7 +1181,7 @@ namespace AxePath
                 float sz = aRocks[i, 2];
                 var t = MeshUtil.Box(R, "ApproachRock", sz, sz * 0.75f, sz, 0x5a6068, aRocks[i, 0], GroundH(aRocks[i, 0], aRocks[i, 1]) + sz * 0.3f, aRocks[i, 1]);
                 t.transform.localRotation = Quaternion.Euler(0f, i * 53f, 0f);
-                ctx.Solid(aRocks[i, 0], aRocks[i, 1], sz * 0.6f);
+                ctx.Solid(aRocks[i, 0], aRocks[i, 1], sz * 0.6f, SurfaceKind.Stone);
             }
             float[,] aPines = new float[,] { {40f,-140f},{-45f,-175f},{55f,-215f},{-50f,-240f},{40f,-265f},{-40f,-130f} };
             for (int i = 0; i < aPines.GetLength(0); i++)
@@ -1141,7 +1193,7 @@ namespace AxePath
                 g.transform.localPosition = new Vector3(x, GroundH(x, z), z);
                 MeshUtil.Tapered(g.transform, "Trunk", ctx.trunkMesh, 0x4a3a28, 0f, 1.6f, 0f);
                 MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, 0x2e5233, 0f, 5.4f, 0f);
-                ctx.Solid(x, z, 0.5f);
+                ctx.Solid(x, z, 0.5f, SurfaceKind.Wood);
             }
             ctx.Dirt(40f, -140f, 12f, 0.22f);
             ctx.Dirt(-45f, -175f, 12f, 0.22f);
@@ -1200,6 +1252,91 @@ namespace AxePath
                 nf++;
             }
             refs.flowerCount = nf;
+        }
+
+        // Merge pass: folds every static mesh under R into one mesh per
+        // material, so the forest draws in dozens of calls instead of
+        // thousands. Same materials and world transforms, so the look
+        // is identical; one MeshCollider per merged mesh keeps the
+        // strike raycast honest. Animated (smoke, foam, wheel, clouds),
+        // toggled (axe, book, log, cairn), shaken (landmarks) and
+        // assert-pinned (blazes, water, chimney, bushes, peaks)
+        // subtrees stay live.
+        private static readonly string[] MergeSkipNames = new string[]
+        {
+            "Blaze", "RiverWater", "Chimney", "Bush", "Berry", "Peak",
+        };
+
+        private static bool MergeSkipped(string name)
+        {
+            foreach (var n in MergeSkipNames) if (name == n) return true;
+            return false;
+        }
+
+        private static void MergeStatics(BuildCtx ctx)
+        {
+            var refs = ctx.world.refs;
+            var skip = new HashSet<Transform>();
+            AddSkips(skip, refs.smokePuffs);
+            AddSkips(skip, refs.riverFoam);
+            AddSkips(skip, refs.riverStreaks);
+            AddSkips(skip, refs.clouds);
+            AddSkips(skip, refs.landmarkPines);
+            AddSkip(skip, refs.millWheel);
+            AddSkip(skip, refs.axeMesh);
+            AddSkip(skip, refs.bookMesh);
+            AddSkip(skip, refs.ironLog);
+            AddSkip(skip, refs.cairn);
+            var groups = new Dictionary<Material, List<CombineInstance>>();
+            var victims = new List<GameObject>();
+            CollectMergeables(ctx.R, skip, groups, victims, true);
+            var mergedRoot = new GameObject("MergedStatics");
+            mergedRoot.transform.SetParent(ctx.R, false);
+            int made = 0;
+            foreach (var kv in groups)
+            {
+                var mesh = new Mesh();
+                mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                mesh.CombineMeshes(kv.Value.ToArray(), true, true);
+                var go = new GameObject("Merged");
+                go.transform.SetParent(mergedRoot.transform, false);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>().sharedMaterial = kv.Key;
+                go.AddComponent<MeshCollider>().sharedMesh = mesh;
+                made++;
+            }
+            foreach (var v in victims) Object.Destroy(v);
+            Debug.Log("AXEPATH: merged " + victims.Count + " statics into " + made + " meshes");
+        }
+
+        private static void AddSkip(HashSet<Transform> skip, GameObject go)
+        {
+            if (go != null) skip.Add(go.transform);
+        }
+
+        private static void AddSkips(HashSet<Transform> skip, List<GameObject> gos)
+        {
+            if (gos == null) return;
+            foreach (var go in gos) AddSkip(skip, go);
+        }
+
+        private static void CollectMergeables(Transform t, HashSet<Transform> skip, Dictionary<Material, List<CombineInstance>> groups, List<GameObject> victims, bool isRoot)
+        {
+            if (!isRoot && (skip.Contains(t) || MergeSkipped(t.name))) return;
+            var mf = t.GetComponent<MeshFilter>();
+            var mr = t.GetComponent<MeshRenderer>();
+            if (mf != null && mr != null && mf.sharedMesh != null && mr.sharedMaterial != null)
+            {
+                List<CombineInstance> list;
+                if (!groups.TryGetValue(mr.sharedMaterial, out list))
+                {
+                    list = new List<CombineInstance>();
+                    groups[mr.sharedMaterial] = list;
+                }
+                list.Add(new CombineInstance { mesh = mf.sharedMesh, transform = t.localToWorldMatrix });
+                victims.Add(t.gameObject);
+            }
+            for (int i = 0; i < t.childCount; i++) CollectMergeables(t.GetChild(i), skip, groups, victims, false);
         }
     }
 

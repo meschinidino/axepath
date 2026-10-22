@@ -17,6 +17,8 @@ namespace AxePath
         public event Action OnPauseResume;
         public event Action OnPauseQuit;
         public event Action<float> OnLookSens;
+        public event Action<float> OnVolume;
+        public event Action OnMuteToggle;
 
         private static Font uiFont;
         private static Color Orange = new Color(0.85f, 0.64f, 0.25f);
@@ -30,6 +32,13 @@ namespace AxePath
         private GameObject pauseRoot;
         private Slider pauseSens;
         private Text pauseSensVal;
+        private Slider pauseVol;
+        private Text pauseVolVal;
+        private Button muteBtn;
+        private Text muteLabel;
+        private GameObject loadingRoot;
+        private Text loadStage;
+        private string loadBase = "";
         private GameObject dialogueBox;
         private Text dialogueName;
         private Text dialogueLine;
@@ -57,6 +66,7 @@ namespace AxePath
         private Action modalCancelFn;
         private float promptHoldUntil;
         private float crossUntil;
+        private bool crossHot;
         private float hurtUntil;
 
         public static Font GetFont()
@@ -278,6 +288,7 @@ namespace AxePath
             BuildDeath(C);
             BuildLock(C);
             BuildPause(C);
+            BuildLoading(C);
         }
 
         private void BuildTitle(Transform c)
@@ -452,7 +463,9 @@ namespace AxePath
         private void BuildPause(Transform c)
         {
             pauseRoot = MkPanel(c, "Pause", 0.92f);
-            Place(pauseRoot.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 560f, 440f);
+            // 480 tall: the bottom-anchored buttons sit ~23u higher than
+            // center math suggests (pivot.y=0), so 440 pinched the mute row.
+            Place(pauseRoot.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 560f, 480f);
             var head = MkText(pauseRoot.transform, "Head", 34, TextAnchor.MiddleCenter);
             Place(head.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 520f, 44f);
             head.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -14f);
@@ -475,6 +488,28 @@ namespace AxePath
                 pauseSensVal.text = SensPct(v);
                 if (OnLookSens != null) OnLookSens(v);
             });
+            var volLabel = MkText(pauseRoot.transform, "VolLabel", 18, TextAnchor.MiddleCenter);
+            Place(volLabel.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 480f, 30f);
+            volLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -178f);
+            volLabel.text = Lines.PauseVolume;
+            pauseVol = MkSlider(pauseRoot.transform, "Vol");
+            Place(pauseVol.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 440f, 28f);
+            pauseVol.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -208f);
+            pauseVol.minValue = 0f;
+            pauseVol.maxValue = 1f;
+            pauseVolVal = MkText(pauseRoot.transform, "VolVal", 16, TextAnchor.MiddleCenter);
+            Place(pauseVolVal.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 200f, 26f);
+            pauseVolVal.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -234f);
+            pauseVolVal.color = new Color(1f, 1f, 1f, 0.75f);
+            pauseVol.onValueChanged.AddListener((float v) => {
+                pauseVolVal.text = VolPct(v);
+                if (OnVolume != null) OnVolume(v);
+            });
+            muteBtn = MkButton(pauseRoot.transform, "Mute", Lines.PauseMute, 18);
+            Place(muteBtn.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 200f, 36f);
+            muteBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -270f);
+            muteLabel = muteBtn.GetComponentInChildren<Text>();
+            muteBtn.onClick.AddListener(() => { if (OnMuteToggle != null) OnMuteToggle(); });
             var resume = MkButton(pauseRoot.transform, "Resume", Lines.PauseResume, 20);
             Place(resume.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 260f, 46f);
             resume.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 116f);
@@ -489,6 +524,51 @@ namespace AxePath
         private static string SensPct(float v)
         {
             return Mathf.RoundToInt(v / PlayerController.DefaultLookSens * 100f) + "%";
+        }
+
+        private static string VolPct(float v)
+        {
+            return Mathf.RoundToInt(Mathf.Clamp01(v) * 100f) + "%";
+        }
+
+        private void BuildLoading(Transform c)
+        {
+            loadingRoot = MkPanel(c, "Loading", 1f);
+            var rt = loadingRoot.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            var head = MkText(loadingRoot.transform, "Head", 40, TextAnchor.MiddleCenter);
+            Place(head.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 800f, 60f);
+            head.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 30f);
+            head.text = Lines.TitleHead;
+            head.color = Orange;
+            loadStage = MkText(loadingRoot.transform, "Stage", 20, TextAnchor.MiddleCenter);
+            Place(loadStage.GetComponent<RectTransform>(), 0.5f, 0.5f, 0.5f, 0.5f, 800f, 30f);
+            loadStage.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -30f);
+            loadStage.color = new Color(1f, 1f, 1f, 0.75f);
+            loadingRoot.SetActive(false);
+        }
+
+        // Pure slot-button copy, so EditMode tests can pin every state.
+        // Dateless saves show no dangling separator.
+        public static string FormatSlotLabel(int s, SlotDesc info)
+        {
+            if (info.state == "empty") return Lines.SlotPrefix + s + Lines.SlotEmpty;
+            if (info.state != "filled") return Lines.SlotPrefix + s + Lines.SlotBroken;
+            // Imports may carry 120-char labels; the button fits one line.
+            string shown = info.label ?? "";
+            int max = 40;
+            if (shown.Length > max)
+            {
+                if (char.IsHighSurrogate(shown[max - 1]) && char.IsLowSurrogate(shown[max])) max--;
+                shown = shown.Substring(0, max) + "...";
+            }
+            string label = Lines.SlotPrefix + s + Lines.SlotMid + shown;
+            string when = info.savedAt != null && info.savedAt.Length >= 10 ? info.savedAt.Substring(0, 10) : "";
+            if (when.Length > 0) label += Lines.SlotDateSep + when;
+            return label;
         }
 
         private static Texture2D RadialTexture()
@@ -517,14 +597,19 @@ namespace AxePath
             {
                 bool hit = now < crossUntil;
                 var img = crossDot.GetComponent<Image>();
-                img.color = hit ? new Color(1f, 0.45f, 0.15f) : Color.white;
-                crossDot.transform.localScale = Vector3.one * (hit ? 2f : 1f);
+                img.color = hit ? new Color(1f, 0.45f, 0.15f) : (crossHot ? new Color(1f, 0.85f, 0.3f) : Color.white);
+                crossDot.transform.localScale = Vector3.one * (hit ? 2f : (crossHot ? 1.5f : 1f));
             }
             if (hurtImg != null)
             {
                 var c = hurtImg.color;
                 c.a = now < hurtUntil ? 1f : 0f;
                 hurtImg.color = c;
+            }
+            if (loadingRoot != null && loadingRoot.activeSelf && loadStage != null)
+            {
+                int dots = (int)(now * 2f) % 4;
+                loadStage.text = loadBase + new string('.', dots);
             }
         }
 
@@ -549,23 +634,7 @@ namespace AxePath
             {
                 int slot = s;
                 var info = describe(slot);
-                string label;
-                if (info.state == "empty") label = Lines.SlotPrefix + s + Lines.SlotEmpty;
-                else if (info.state == "filled")
-                {
-                    string when = info.savedAt != null && info.savedAt.Length >= 10 ? info.savedAt.Substring(0, 10) : "";
-                    // Imports may carry 120-char labels; the button fits one line.
-                    string shown = info.label ?? "";
-                    int max = 40;
-                    if (shown.Length > max)
-                    {
-                        if (char.IsHighSurrogate(shown[max - 1]) && char.IsLowSurrogate(shown[max])) max--;
-                        shown = shown.Substring(0, max) + "...";
-                    }
-                    label = Lines.SlotPrefix + s + Lines.SlotMid + shown + Lines.SlotDateSep + when;
-                }
-                else label = Lines.SlotPrefix + s + Lines.SlotBroken;
-                var b = MkButton(slotWrap, "Slot", label, 18);
+                var b = MkButton(slotWrap, "Slot", FormatSlotLabel(slot, info), 18);
                 Place(b.GetComponent<RectTransform>(), 0.5f, 1f, 0.5f, 1f, 540f, 52f);
                 b.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -(s - 1) * 62f);
                 b.onClick.AddListener(() => onPick(slot, info));
@@ -588,6 +657,30 @@ namespace AxePath
             pauseSens.SetValueWithoutNotify(v);
             pauseSensVal.text = SensPct(v);
         }
+
+        public void SetVolume(float v)
+        {
+            pauseVol.SetValueWithoutNotify(Mathf.Clamp01(v));
+            pauseVolVal.text = VolPct(v);
+        }
+
+        public void SetMuted(bool m)
+        {
+            if (muteLabel != null) muteLabel.text = m ? Lines.PauseUnmute : Lines.PauseMute;
+        }
+
+        public void ShowLoading(bool show)
+        {
+            if (show && EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            loadingRoot.SetActive(show);
+        }
+
+        public void SetLoadingStage(string stage)
+        {
+            loadBase = stage ?? "";
+        }
+
+        public bool IsLoadingOpen() { return loadingRoot.activeSelf; }
 
         public void SetEdge(int step, bool have)
         {
@@ -632,6 +725,9 @@ namespace AxePath
         public string PromptText() { return promptText.transform.parent.gameObject.activeSelf ? promptText.text : ""; }
 
         public void FlashCross(float secs = 0.16f) { crossUntil = Time.realtimeSinceStartup + secs; }
+
+        public void SetCrossHot(bool hot) { crossHot = hot; }
+        public bool IsCrossHot() { return crossHot; }
 
         public void SetBanner(string text)
         {

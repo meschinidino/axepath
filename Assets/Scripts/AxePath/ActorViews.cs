@@ -14,6 +14,7 @@ namespace AxePath
         public Vec2 knockDir;
         public bool flashed;
         public float deadT;
+        public bool corpseGone;
     }
 
     public class WolfView : MonoBehaviour

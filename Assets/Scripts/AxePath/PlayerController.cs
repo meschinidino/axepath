@@ -28,6 +28,30 @@ namespace AxePath
         private float shakeT;
         public float Trauma { get { return trauma; } }
         private float swingDur = 0.4f;
+        private float airY;
+        private float jumpV;
+        // The chop lands at this fraction of the swing: impact resolves
+        // here, never on click. Shared with the session so effects fire
+        // exactly when the axe arrives.
+        public const float ContactK = 0.62f;
+        public float SwingK { get { return swingT > 0f && swingDur > 0f ? 1f - swingT / swingDur : 1f; } }
+        public float AirY { get { return airY; } }
+
+        public bool TryJump()
+        {
+            if (airY > 0f || jumpV != 0f) return false;
+            jumpV = Tuning.JumpSpeed;
+            stepAcc = 0f;
+            return true;
+        }
+
+        // One jump-integration step, factored pure so EditMode tests pin it.
+        public static void TickJump(ref float y, ref float vy, float dt, float gravity)
+        {
+            vy -= gravity * dt;
+            y += vy * dt;
+            if (y <= 0f) { y = 0f; vy = 0f; }
+        }
         private float bobT;
         private float stepAcc;
         private GameWorld world;
@@ -48,7 +72,7 @@ namespace AxePath
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.fieldOfView = 72f;
             cam.nearClipPlane = 0.2f;
-            cam.farClipPlane = 1500f;
+            cam.farClipPlane = 900f;
             Cam = cam;
 
             axeView = new GameObject("AxeView");
@@ -123,6 +147,7 @@ namespace AxePath
             bool d = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
             float f = (w ? 1f : 0f) - (s ? 1f : 0f);
             float st = (d ? 1f : 0f) - (a ? 1f : 0f);
+            if (Input.GetKeyDown(KeyCode.Space)) TryJump();
             running = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && f > 0f;
             float speed = running ? RunSpeed : WalkSpeed;
             float sin = Mathf.Sin(yaw);
@@ -154,7 +179,8 @@ namespace AxePath
                 pos.x = Mathf.Clamp(pos.x, world.minX, world.maxX);
                 pos.z = Mathf.Clamp(pos.z, world.minZ, world.maxZ);
             }
-            pos.y = WorldBuilder.GroundH(pos.x, pos.z);
+            if (airY > 0f || jumpV != 0f) TickJump(ref airY, ref jumpV, dt, Tuning.JumpGravity);
+            pos.y = WorldBuilder.GroundH(pos.x, pos.z) + airY;
             transform.position = pos;
 
             bool moving = f != 0f || st != 0f;
@@ -162,7 +188,7 @@ namespace AxePath
             {
                 bobT += dt * (running ? 11f : 8f);
                 stepAcc += dt * (running ? 2.2f : 1.6f);
-                if (stepAcc > 1f)
+                if (stepAcc > 1f && airY <= 0f)
                 {
                     stepAcc = 0f;
                     if (OnStep != null) OnStep();
@@ -178,14 +204,15 @@ namespace AxePath
             {
                 swingT -= dt;
                 float k = 1f - Mathf.Max(0f, swingT) / swingDur;
-                float rx, zz;
-                SwingPose(k, out rx, out zz);
+                float rx, xx, zz;
+                SwingPose(k, out rx, out xx, out zz);
                 // Chop travels down-forward so the edge leads into the target.
                 // (Negative X swung the head back toward the face: the old
                 // "hits with the bottom" read. The windup dip below is a
                 // deliberate pull-back, not that bug.)
                 axeView.transform.localRotation = Quaternion.Euler(rx, -24f, 14f);
                 var ap = axeView.transform.localPosition;
+                ap.x = xx;
                 ap.z = zz;
                 axeView.transform.localPosition = ap;
             }
@@ -193,6 +220,7 @@ namespace AxePath
             {
                 axeView.transform.localRotation = Quaternion.Euler(10f, -24f, 14f);
                 var ap = axeView.transform.localPosition;
+                ap.x = 0.32f;
                 ap.z = 0.55f;
                 axeView.transform.localPosition = ap;
             }
@@ -213,29 +241,35 @@ namespace AxePath
         // Swing pose as a pure function of progress k in [0,1]: windup
         // pull-back to k=0.28, accelerating chop to contact at k=0.62,
         // settle back to rest at k=1. Fractions of swingDur, so skill
-        // speed-ups scale the beats without retiming them. EditMode-tested.
-        public static void SwingPose(float k, out float rotX, out float z)
+        // speed-ups scale the beats without retiming them. The chop
+        // sweeps sideways through center so the edge meets the
+        // crosshair at contact instead of chopping down the right
+        // edge. EditMode-tested.
+        public static void SwingPose(float k, out float rotX, out float x, out float z)
         {
             if (k <= 0.28f)
             {
                 float t = k / 0.28f;
                 float e = t * t * (3f - 2f * t);
                 rotX = 10f - 36f * e;
+                x = 0.32f + 0.06f * e;
                 z = 0.55f - 0.15f * e;
             }
-            else if (k <= 0.62f)
+            else if (k <= ContactK)
             {
-                float t = (k - 0.28f) / 0.34f;
+                float t = (k - 0.28f) / (ContactK - 0.28f);
                 float e = t * t * t;
                 rotX = -26f + 100f * e;
-                z = 0.40f + 0.49f * e;
+                x = 0.38f - 0.36f * e;
+                z = 0.40f + 0.62f * e;
             }
             else
             {
-                float t = (k - 0.62f) / 0.38f;
+                float t = (k - ContactK) / (1f - ContactK);
                 float e = 1f - (1f - t) * (1f - t);
                 rotX = 74f - 64f * e;
-                z = 0.89f - 0.34f * e;
+                x = 0.02f + 0.30f * e;
+                z = 1.02f - 0.47f * e;
             }
         }
 
@@ -254,6 +288,9 @@ namespace AxePath
         public void Teleport(float x, float z, float newYaw)
         {
             transform.position = new Vector3(x, WorldBuilder.GroundH(x, z), z);
+            airY = 0f;
+            jumpV = 0f;
+            stepAcc = 0f;
             yaw = newYaw;
             pitch = 0f;
             ApplyLook();
@@ -262,6 +299,13 @@ namespace AxePath
         public void Respawn(Vector3 spawn)
         {
             Teleport(spawn.x, spawn.z, 0f);
+            // A new body starts settled: no inherited mid-swing
+            // cooldown, camera trauma, or falling hop.
+            swingT = 0f;
+            trauma = 0f;
+            shakeT = 0f;
+            airY = 0f;
+            jumpV = 0f;
         }
     }
 }
