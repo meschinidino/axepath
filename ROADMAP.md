@@ -1,15 +1,19 @@
 # Axe Path — roadmap
 
-## Where the slice stands: ~75%
+## Where the slice stands: ~90%
 
 The full v1 loop is playable end to end in `Builds/AxePath.app`:
 spawn → axe → sketch → uphill forest → wolf → dwarf cold/civil/
 sharpening → ironwood → earned edge, with permadeath generations,
 title/death/save, HUD, synth audio, night sky, and mountain backdrop.
-67 EditMode + 43 PlayMode tests green; viewpoint screenshots verify
+71 EditMode + 43 PlayMode tests green; viewpoint screenshots verify
 every area each run.
 
-Systems are ~90%; content depth, feel, and art are ~50%.
+The tenfold pass (see CHANGELOG [Unreleased]) added procedural PBR
+textures, zone-graded atmosphere, world dressing, wildlife ecology,
+stamina/guard/sneak combat, pack hunting, loot and foraging, a
+generative score, and a serif HUD. Systems are ~95%; content depth,
+feel, and art are ~75%.
 
 ## Next, in order
 
