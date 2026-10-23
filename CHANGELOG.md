@@ -3,6 +3,54 @@
 All notable changes to Axe Path. Format follows Keep a Changelog;
 releases are `vMAJOR.MINOR.PATCH` tags, built by the release workflow.
 
+## [Unreleased]
+
+### Added
+
+- Procedural PBR detail: every surface gains generated grain, bark,
+  rock, and ground textures with bump relief (`TextureFactory.cs`);
+  materials move from flat 0.05 gloss to lit, textured finishes.
+- Zone-graded atmosphere: fog color/density and ambient shift between
+  village, forest, and cave (`CameraFx.cs`); 2048px night sky with
+  nebula tint and 2600 stars; warm lantern posts light the village.
+- World dressing stage: 2600 grass tufts, ferns, scatter rocks,
+  mushrooms, stumps, fallen logs, fences, crates, and barrels
+  (`DetailBuilder.cs`), all merged into the static draw budget.
+- Living ecology: grazing/fleeing deer, darting rabbits, and circling
+  birds (`Wildlife.cs`); detailed dwarf (beard, buckle, hammer),
+  librarian (hood, sash), and wolves (ears, hackles, paws).
+- Survival gameplay: stamina (sprint/swing/guard costs), right-click
+  guard that turns wolf bites, Ctrl/C sneak that cuts hearing, wolf
+  pack alerting, wolf loot (pelts + meat), berry foraging, and eating
+  to heal (F meat, R berries). Saved with the world; old saves load
+  with empty stores.
+- Generative score: sparse D-minor pentatonic plucks over a fifth
+  drone, darker and slower inside the cave (`AudioSynth.TickMusic`).
+- HUD: engraved serif type, breath (stamina) bar with guard/sneak
+  states, loot readout, and a permanent soft vignette.
+
+- Shaped world art: tiered pines, timber-framed pitched-roof huts,
+  a stone chapel with bell tower and graveyard, and a two-floor inn
+  with porch and hanging sign. Jointed wolves (hip, head, and tail
+  pivots) trot and gallop with a diagonal gait; the dwarf works the
+  anvil with a looping forge arm.
+
+### Fixed
+
+- Losing cursor lock mid-swing (unfocused window) no longer strands
+  the axe in the air: the in-flight swing settles and lands while
+  the world stays paused.
+- Grass no longer grows over stone or trodden ground (path, cave
+  apron, clearings, dirt patches excluded), and mountain and cave
+  wall colliders now match their visuals: no walking through
+  mountainsides or slipping between cave-wall discs.
+- The ground no longer washes white and flutters while walking:
+  the Blender kit's studio render floor (a ~300m white plane) was
+  being exported into the game and z-fought the terrain, and the
+  dirt discs shared a pale wood material that blew out to cream
+  under moonlight. The exporter and the runtime now both strip
+  the floor, and dirt has its own dark earth texture/material.
+
 ## [0.2.0] - 2026-10-22
 
 ### Added

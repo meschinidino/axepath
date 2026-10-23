@@ -15,11 +15,14 @@ Open `Builds/AxePath.app` (built locally, not committed), or grab
 
 | Input | Action |
 |---|---|
-| W A S D / arrows | Walk (Shift = run, forward only) |
+| W A S D / arrows | Walk (Shift = run, forward only; drains breath) |
 | Mouse | Look |
-| Left click | Swing the axe |
+| Left click | Swing the axe (costs breath; cancel after contact) |
+| Hold right click | Guard (turns wolf bites aside, costs breath) |
+| Ctrl or C | Sneak (slow, near-silent: wolves hear far less) |
 | Space | Hop (clears a wolf lunge near the apex) |
-| E | Interact (take, talk, read) |
+| E | Interact (take, talk, read, gather berries) |
+| F / R | Eat wolf meat / berries (heals one wound) |
 | Esc | Pause / close panels (Esc again resumes) |
 
 Fixed keys in v1, always shown on the title controls card.
@@ -49,10 +52,10 @@ After building on macOS, strip quarantine once:
 
 ## Test it
 
-- **EditMode (40):** pure game rules in `GameLogic.cs` — trust ladder,
-  dulling, wolf brain, saves — plus the axe swing, shake, shudder,
-  and chip math pins. No scene objects needed.
-- **PlayMode (32):** `SessionFlow` drives the real session end to end
+- **EditMode (71):** pure game rules in `GameLogic.cs` — trust ladder,
+  dulling, wolf brain, saves, stamina/guard/pack/loot — plus the axe
+  swing, shake, shudder, and chip math pins. No scene objects needed.
+- **PlayMode (43):** `SessionFlow` drives the real session end to end
   (title → axe → book → chop → wolf → thaw → ironwood → sharpened →
   death → reclaim); `WorldShots` asserts world structure and captures
   viewpoint screenshots to `Assets/Screenshots/` (gitignored, regenerable).

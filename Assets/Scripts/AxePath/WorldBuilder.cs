@@ -75,6 +75,8 @@ namespace AxePath
         public ParticleSystem leafPS;
         public List<Material> fireflyMats = new List<Material>();
         public List<Vec2> blazePos = new List<Vec2>();
+        public List<Vec2> bushPos = new List<Vec2>();
+        public List<GameObject> lanternFlames = new List<GameObject>();
         public Vector3 axeStandPos = new Vector3(-30f, 0f, 180f);
         public Vector3 bookStandPos = new Vector3(35f, 0f, 190f);
         public Vector3 ironLogPos = new Vector3(72f, 0f, -340f);
@@ -121,7 +123,8 @@ namespace AxePath
                 m = new Material(Shader.Find("Standard"));
                 m.color = C(hex);
                 m.SetFloat("_Metallic", 0f);
-                m.SetFloat("_Glossiness", 0.05f);
+                m.SetFloat("_Glossiness", 0.32f);
+                TextureFactory.Dress(m, TextureFactory.FamilyFor(hex));
                 matCache[hex] = m;
             }
             return m;
@@ -132,7 +135,8 @@ namespace AxePath
             var m = new Material(Shader.Find("Standard"));
             m.color = C(hex);
             m.SetFloat("_Metallic", 0f);
-            m.SetFloat("_Glossiness", 0.1f);
+            m.SetFloat("_Glossiness", 0.38f);
+            TextureFactory.Dress(m, TextureFactory.FamilyFor(hex));
             return m;
         }
 
@@ -193,14 +197,89 @@ namespace AxePath
 
         public static GameObject Tapered(Transform parent, string name, Mesh mesh, uint color, float x, float y, float z)
         {
+            return Tapered(parent, name, mesh, Mat(color), x, y, z);
+        }
+
+        public static GameObject Tapered(Transform parent, string name, Mesh mesh, Material mat, float x, float y, float z)
+        {
             var go = new GameObject(name);
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = Mat(color);
+            mr.sharedMaterial = mat;
             go.transform.SetParent(parent, false);
             go.transform.localPosition = new Vector3(x, y, z);
             return go;
+        }
+
+        // Shaped rock: two flattened, offset stones read as one crag
+        // instead of a ball. Flat facets come from the sphere's own
+        // segments at low scale contrast; rotation sells the rest.
+        public static GameObject Crag(Transform parent, string name, float r, uint color, float x, float y, float z, float seed)
+        {
+            var g = new GameObject(name);
+            g.transform.SetParent(parent, false);
+            g.transform.localPosition = new Vector3(x, y, z);
+            g.transform.localRotation = Quaternion.Euler(0f, seed * 57f % 360f, 0f);
+            var a = Ball(g.transform, "CragA", r, color, 0f, 0f, 0f, false);
+            a.transform.localScale = new Vector3(r * 2.1f, r * 1.25f, r * 1.7f);
+            var b = Ball(g.transform, "CragB", r * 0.62f, color, r * 0.55f, r * 0.32f, r * 0.2f, false);
+            b.transform.localScale = new Vector3(r * 1.3f, r * 0.85f, r * 1.1f);
+            return g;
+        }
+
+        // Timber frame: dark beams on the corners and eaves of a box so
+        // a wall reads as built carpentry, not a colored cube.
+        public static void TimberFrame(Transform parent, float w, float h, float d, float yBase)
+        {
+            uint beam = 0x2c2118;
+            float hw = w / 2f, hd = d / 2f;
+            Box(parent, "Beam", 0.18f, h, 0.18f, beam, -hw, yBase + h / 2f, -hd);
+            Box(parent, "Beam", 0.18f, h, 0.18f, beam, hw, yBase + h / 2f, -hd);
+            Box(parent, "Beam", 0.18f, h, 0.18f, beam, -hw, yBase + h / 2f, hd);
+            Box(parent, "Beam", 0.18f, h, 0.18f, beam, hw, yBase + h / 2f, hd);
+            Box(parent, "Beam", w + 0.15f, 0.16f, 0.16f, beam, 0f, yBase + h - 0.1f, -hd);
+            Box(parent, "Beam", w + 0.15f, 0.16f, 0.16f, beam, 0f, yBase + h - 0.1f, hd);
+        }
+
+        // Solid prism roof: two slopes plus closed gable ends, so the
+        // roof has a body from every angle instead of two floating
+        // sheets with daylight under them.
+        public static Mesh PrismMesh(float w, float rise, float d)
+        {
+            float hw = w / 2f, hd = d / 2f;
+            var v = new Vector3[] {
+                new Vector3(-hw, 0f, -hd), new Vector3(hw, 0f, -hd),
+                new Vector3(hw, 0f, hd), new Vector3(-hw, 0f, hd),
+                new Vector3(0f, rise, -hd), new Vector3(0f, rise, hd),
+            };
+            // Quads split into outward-wound triangles.
+            var tris = new int[] {
+                0, 5, 4, 0, 3, 5,   // left slope
+                1, 5, 2, 1, 4, 5,   // right slope
+                0, 4, 1,            // front gable
+                2, 5, 3,            // back gable
+                0, 1, 2, 0, 2, 3,   // underside
+            };
+            var mesh = new Mesh();
+            mesh.vertices = v;
+            mesh.triangles = tris;
+            var uv = new Vector2[v.Length];
+            for (int i = 0; i < v.Length; i++) uv[i] = new Vector2(v[i].x + v[i].z, v[i].y + v[i].z);
+            mesh.uv = uv;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        public static void PitchedRoof(Transform parent, string name, float w, float rise, float d, uint color, float y, float cx = 0f, float cz = 0f)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(cx, y, cz);
+            go.AddComponent<MeshFilter>().sharedMesh = PrismMesh(w, rise, d);
+            go.AddComponent<MeshRenderer>().sharedMaterial = Mat(color);
+            Box(parent, "Ridge", 0.24f, 0.18f, d, 0x2c2118, cx, y + rise + 0.05f, cz);
         }
     }
 
@@ -309,7 +388,17 @@ namespace AxePath
             var go = new GameObject("Ground");
             go.transform.SetParent(parent, false);
             go.AddComponent<MeshFilter>().sharedMesh = m;
-            go.AddComponent<MeshRenderer>().sharedMaterial = MeshUtil.Mat(0x24382a);
+            var groundMat = MeshUtil.FreshMat(0x24382a);
+            TextureFactory.Dress(groundMat, "ground");
+            groundMat.mainTextureScale = new Vector2(26f, 26f);
+            groundMat.SetTextureScale("_BumpMap", new Vector2(26f, 26f));
+            // No bump on the ground: at grazing angles a repeating
+            // normal map swims white/green as you walk.
+            groundMat.SetFloat("_BumpScale", 0f);
+            // Near-matte: smooth ground under a hard moon throws one
+            // huge white specular sheet across the whole field.
+            groundMat.SetFloat("_Glossiness", 0.04f);
+            go.AddComponent<MeshRenderer>().sharedMaterial = groundMat;
         }
 
         // Shared build state threaded through the per-area builders below.
@@ -321,6 +410,7 @@ namespace AxePath
             public readonly GameWorld world;
             public readonly Transform R;
             public Mesh dirtMesh;
+            public Material dirtMat;
             public Mesh trunkMesh;
             public Mesh canopyMesh;
             public Mesh oakTrunkMesh;
@@ -342,7 +432,7 @@ namespace AxePath
             // 0.04): coplanar neighbors z-fight, worse at long range.
             public void Dirt(float x, float z, float r, float top = 0.04f)
             {
-                var p = MeshUtil.Tapered(R, "Dirt", dirtMesh, 0x4a3d28, x, GroundH(x, z) + top - 0.02f, z);
+                var p = MeshUtil.Tapered(R, "Dirt", dirtMesh, dirtMat, x, GroundH(x, z) + top - 0.02f, z);
                 p.transform.localScale = new Vector3(r, 1f, r);
                 float slope = (GroundH(x, z + 1f) - GroundH(x, z - 1f)) * 0.5f;
                 p.transform.localRotation = Quaternion.Euler(-Mathf.Atan(slope) * 57.29578f, 0f, 0f);
@@ -400,6 +490,7 @@ namespace AxePath
                 "Raising the peaks",
                 "Filling the wilds",
                 "Scattering petals",
+                "Dressing the wilds",
                 "Merging statics",
             };
 
@@ -433,7 +524,8 @@ namespace AxePath
                     case 6: BuildBackdrop(ctx); break;
                     case 7: BuildInfill(ctx); break;
                     case 8: BuildFlowers(ctx); break;
-                    case 9: MergeStatics(ctx); break;
+                    case 9: DetailBuilder.Build(ctx.world, ctx.R, ctx.clearings); break;
+                    case 10: MergeStatics(ctx); break;
                     default: break;
                 }
                 stage++;
@@ -455,6 +547,16 @@ namespace AxePath
             // Ground plus dirt patches.
             BuildGround(R);
             ctx.dirtMesh = MeshUtil.TaperMesh(1f, 1f, 0.04f);
+            // Dedicated dirt material: the discs once shared the
+            // wood-brown Mat cache entry, whose pale bark texture blew
+            // out to a cream sheet under moon+lantern light and read
+            // as broken white ground. Dark earth, tiled 3x per disc
+            // so the cap UV shows mottling instead of one flat smear.
+            ctx.dirtMat = MeshUtil.FreshMat(0x5f4629);
+            TextureFactory.Dress(ctx.dirtMat, "dirt");
+            ctx.dirtMat.mainTextureScale = new Vector2(4f, 4f);
+            ctx.dirtMat.SetTextureScale("_BumpMap", new Vector2(4f, 4f));
+            ctx.dirtMat.SetFloat("_Glossiness", 0.12f);
             ctx.Dirt(-30f, 190f, 28f, 0.10f);
             ctx.Dirt(35f, 190f, 24f, 0.16f);
             ctx.Dirt(0f, 210f, 20f, 0.22f);
@@ -531,8 +633,7 @@ namespace AxePath
             refs.bookMesh = MeshUtil.Box(nook.transform, "Book", 0.5f, 0.1f, 0.36f, 0xd9cfae, 0f, 1.15f, 1.2f);
             ctx.Solid(35f, 190f, 2.6f, SurfaceKind.Wood);
 
-            // Two village huts.
-            var hutRoofMesh = MeshUtil.TaperMesh(0.02f, 3.1f, 1.8f);
+            // Two village huts: timber frame, plank walls, pitched roofs.
             float[,] huts = new float[,] { {-80f, 220f}, {80f, 220f} };
             for (int i = 0; i < 2; i++)
             {
@@ -542,10 +643,96 @@ namespace AxePath
                 hut.transform.SetParent(R, false);
                 hut.transform.localPosition = new Vector3(hx, 0f, hz);
                 MeshUtil.Box(hut.transform, "Walls", 4f, 2.4f, 3.4f, 0x4f4234, 0f, 1.2f, 0f);
-                var hr = MeshUtil.Tapered(hut.transform, "Roof", hutRoofMesh, 0x3a2f22, 0f, 3.3f, 0f);
-                hr.transform.localRotation = Quaternion.Euler(0f, 45f, 0f);
+                MeshUtil.Box(hut.transform, "StoneBase", 4.3f, 0.5f, 3.7f, 0x565c66, 0f, 0.25f, 0f);
+                MeshUtil.TimberFrame(hut.transform, 4f, 2.4f, 3.4f, 0f);
+                MeshUtil.PitchedRoof(hut.transform, "Roof", 4.6f, 1.5f, 4.2f, 0x3a2f22, 2.4f);
+                // Lit window + door: the village is lived-in, not a diorama.
+                var win = MeshUtil.Box(hut.transform, "WindowGlow", 0.7f, 0.8f, 0.08f, 0xffb45e, 0.9f, 1.35f, 1.74f);
+                win.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xffb45e);
+                MeshUtil.Box(hut.transform, "Door", 0.9f, 1.9f, 0.1f, 0x2c2118, -0.9f, 0.95f, 1.72f);
+                MeshUtil.Box(hut.transform, "ChimneyStone", 0.6f, 1.4f, 0.6f, 0x565c66, 1.1f, 3.4f, -0.6f);
                 ctx.Solid(hx, hz, 3.2f, SurfaceKind.Wood);
             }
+
+            // Lantern posts: warm pools guiding spawn -> yard -> library.
+            float[,] posts = new float[,] { {-12f, 198f}, {12f, 196f}, {-28f, 170f}, {30f, 178f}, {0f, 150f} };
+            for (int i = 0; i < posts.GetLength(0); i++)
+            {
+                float lx = posts[i, 0], lz = posts[i, 1];
+                float gy = GroundH(lx, lz);
+                var post = new GameObject("LanternPost");
+                post.transform.SetParent(R, false);
+                post.transform.localPosition = new Vector3(lx, gy, lz);
+                MeshUtil.Box(post.transform, "PostWood", 0.16f, 2.6f, 0.16f, 0x3a2f22, 0f, 1.3f, 0f);
+                MeshUtil.Box(post.transform, "ArmWood", 0.7f, 0.12f, 0.12f, 0x3a2f22, 0.3f, 2.55f, 0f);
+                var flame = MeshUtil.Ball(post.transform, "LanternFlame", 0.16f, 0xffc46b, 0.6f, 2.25f, 0f, true);
+                refs.lanternFlames.Add(flame);
+                var lg = new GameObject("LanternLight");
+                lg.transform.SetParent(post.transform, false);
+                lg.transform.localPosition = new Vector3(0.6f, 2.25f, 0f);
+                var ll = lg.AddComponent<Light>();
+                ll.type = LightType.Point; ll.color = MeshUtil.C(0xffa04a);
+                ll.intensity = 1.6f; ll.range = 16f;
+                ctx.Solid(lx, lz, 0.35f, SurfaceKind.Wood);
+            }
+
+            // The chapel: stone nave, steep roof, bell tower. The village
+            // has a conscience and a landmark you can navigate by.
+            var chapel = new GameObject("Chapel");
+            chapel.transform.SetParent(R, false);
+            chapel.transform.localPosition = new Vector3(58f, 0f, 230f);
+            MeshUtil.Box(chapel.transform, "Nave", 5f, 3.4f, 8f, 0x6a7078, 0f, 1.7f, 0f);
+            MeshUtil.Box(chapel.transform, "StoneBase", 5.4f, 0.6f, 8.4f, 0x565c66, 0f, 0.3f, 0f);
+            MeshUtil.PitchedRoof(chapel.transform, "Roof", 5.8f, 2.2f, 8.8f, 0x2c3440, 3.4f);
+            MeshUtil.Box(chapel.transform, "Tower", 2.2f, 7.5f, 2.2f, 0x6a7078, 0f, 3.75f, -4.6f);
+            MeshUtil.PitchedRoof(chapel.transform, "TowerRoof", 2.8f, 1.6f, 2.8f, 0x2c3440, 7.5f, 0f, -4.6f);
+            MeshUtil.Box(chapel.transform, "BellArch", 1.1f, 1.5f, 0.15f, 0x1a1d22, 0f, 6.4f, -5.75f);
+            MeshUtil.Tapered(chapel.transform, "Bell", MeshUtil.TaperMesh(0.12f, 0.42f, 0.7f), 0xd9a441, 0f, 6.35f, -5.9f);
+            // Nave windows + buttresses: a stone box from every side.
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var cw = MeshUtil.Box(chapel.transform, "WindowGlow", 0.08f, 1.1f, 0.6f, 0xffd98a, s * 2.56f, 2f, -1.8f);
+                cw.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xffd98a);
+                var cw2 = MeshUtil.Box(chapel.transform, "WindowGlow", 0.08f, 1.1f, 0.6f, 0xffd98a, s * 2.56f, 2f, 1.8f);
+                cw2.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xffd98a);
+                MeshUtil.Box(chapel.transform, "Buttress", 0.5f, 2.6f, 0.6f, 0x565c66, s * 2.75f, 1.3f, -3.4f);
+                MeshUtil.Box(chapel.transform, "Buttress", 0.5f, 2.6f, 0.6f, 0x565c66, s * 2.75f, 1.3f, 3.4f);
+            }
+            MeshUtil.Ball(chapel.transform, "RoseWindow", 0.55f, 0xffd98a, 0f, 2.6f, 4.06f, true);
+            MeshUtil.Box(chapel.transform, "ChapelDoor", 1.2f, 2.2f, 0.12f, 0x2c2118, 0f, 1.1f, 4.03f);
+            MeshUtil.Box(chapel.transform, "CrossV", 0.1f, 0.9f, 0.1f, 0xd9cfae, 0f, 9.6f, -4.6f);
+            MeshUtil.Box(chapel.transform, "CrossH", 0.55f, 0.1f, 0.1f, 0xd9cfae, 0f, 9.65f, -4.6f);
+            ctx.Solid(58f, 230f, 4.2f, SurfaceKind.Stone);
+            // Graveyard: the permadeath promise, written in small stones.
+            for (int i = 0; i < 6; i++)
+            {
+                float gx = 51f + (i % 3) * 1.6f, gz = 236f + (i / 3) * 2.2f;
+                MeshUtil.Box(chapel.transform, "Gravestone", 0.55f, 0.8f, 0.12f, 0x565c66, gx - 58f, 0.4f, gz - 230f);
+            }
+
+            // The inn: two floors, porch, hanging sign. Where travellers
+            // and rumors both sleep. (Ours keeps its own name and face.)
+            var inn = new GameObject("Inn");
+            inn.transform.SetParent(R, false);
+            inn.transform.localPosition = new Vector3(-52f, 0f, 228f);
+            MeshUtil.Box(inn.transform, "Walls", 7f, 4.6f, 5f, 0x5a4630, 0f, 2.3f, 0f);
+            MeshUtil.Box(inn.transform, "StoneBase", 7.4f, 0.6f, 5.4f, 0x565c66, 0f, 0.3f, 0f);
+            MeshUtil.TimberFrame(inn.transform, 7f, 4.6f, 5f, 0f);
+            MeshUtil.PitchedRoof(inn.transform, "Roof", 7.8f, 2f, 5.8f, 0x3a2f22, 4.6f);
+            MeshUtil.Box(inn.transform, "PorchRoof", 5f, 0.14f, 1.8f, 0x3a2f22, 0f, 2.7f, 3.1f);
+            MeshUtil.Box(inn.transform, "PorchPost", 0.16f, 2.6f, 0.16f, 0x2c2118, -2.3f, 1.3f, 3.8f);
+            MeshUtil.Box(inn.transform, "PorchPost", 0.16f, 2.6f, 0.16f, 0x2c2118, 2.3f, 1.3f, 3.8f);
+            var innWin = MeshUtil.Box(inn.transform, "WindowGlow", 0.8f, 0.9f, 0.08f, 0xffb45e, -1.8f, 1.5f, 2.54f);
+            innWin.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xffb45e);
+            var innWin2 = MeshUtil.Box(inn.transform, "WindowGlow", 0.8f, 0.9f, 0.08f, 0xffb45e, 1.8f, 3.4f, 2.54f);
+            innWin2.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xffb45e);
+            MeshUtil.Box(inn.transform, "InnDoor", 1.1f, 2.1f, 0.12f, 0x2c2118, 0.4f, 1.05f, 2.53f);
+            MeshUtil.Box(inn.transform, "SignPost", 0.16f, 3f, 0.16f, 0x2c2118, 3.4f, 1.5f, 3.2f);
+            MeshUtil.Box(inn.transform, "SignArm", 1.1f, 0.12f, 0.12f, 0x2c2118, 2.95f, 2.85f, 3.2f);
+            var sign = MeshUtil.Box(inn.transform, "InnSign", 0.9f, 0.7f, 0.08f, 0xd9a441, 2.55f, 2.3f, 3.2f);
+            sign.GetComponent<Renderer>().sharedMaterial = MeshUtil.Basic(0xd9a441);
+            MeshUtil.Box(inn.transform, "ChimneyStone", 0.7f, 1.8f, 0.7f, 0x565c66, -2.4f, 5.4f, -1f);
+            ctx.Solid(-52f, 228f, 4.4f, SurfaceKind.Wood);
         }
 
         // Flat ribbon mesh from left/right edge samples. Double-sided: the
@@ -777,7 +964,13 @@ namespace AxePath
                 MeshUtil.Tapered(g.transform, "Trunk", ctx.trunkMesh, 0x4a3a28, 0f, 1.6f, 0f);
                 int pick = (((int)(x * 7f + z * 13f)) % 3 + 3) % 3;
                 uint canopyCol = pick == 0 ? 0x41704au : (pick == 1 ? 0x2e5233u : 0x38663bu);
-                MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, canopyCol, 0f, 5.4f, 0f);
+                // Tiered pine: three shrinking skirts read as branches
+                // where one cone read as a party hat.
+                MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, canopyCol, 0f, 4.1f, 0f);
+                var tier2 = MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, canopyCol, 0.15f, 5.6f, 0.1f);
+                tier2.transform.localScale = new Vector3(0.68f, 0.72f, 0.68f);
+                var tier3 = MeshUtil.Tapered(g.transform, "Canopy", ctx.canopyMesh, canopyCol, -0.1f, 6.9f, -0.08f);
+                tier3.transform.localScale = new Vector3(0.42f, 0.55f, 0.42f);
             }
             ctx.Solid(x, z, 0.5f, SurfaceKind.Wood);
         }
@@ -792,7 +985,7 @@ namespace AxePath
             var rand = new Mulberry(1337);
             ctx.rand = rand;
             float[,] clearings = new float[,] {
-                {-30,190,45},{35,190,40},{0,210,35},{95,180,25},{104,205,20},{120,232,16},
+                {-30,190,45},{35,190,40},{0,210,35},{95,180,25},{104,205,20},{120,232,16},{58,230,11},{-52,228,11},
                 {0,-300,60},{72,-340,50},{-70,0,30},{95,-60,25},{-45,-200,25},
                 {10,25,22},{0,142,32},
             };
@@ -920,8 +1113,16 @@ namespace AxePath
             ctx.Solid(13f, -285f, 7f, SurfaceKind.Stone);
             ctx.Solid(13f, -302f, 7f, SurfaceKind.Stone);
             ctx.Solid(13f, -319f, 7f, SurfaceKind.Stone);
+            // Seal the lens gaps between the big discs: 17u spacing with
+            // r7 discs left a walkable 3u slot mid-wall on both sides.
+            ctx.Solid(-13f, -293.5f, 5f, SurfaceKind.Stone);
+            ctx.Solid(-13f, -310.5f, 5f, SurfaceKind.Stone);
+            ctx.Solid(13f, -293.5f, 5f, SurfaceKind.Stone);
+            ctx.Solid(13f, -310.5f, 5f, SurfaceKind.Stone);
             ctx.Solid(-10f, -329f, 5f, SurfaceKind.Stone);
+            ctx.Solid(-5f, -329f, 4.5f, SurfaceKind.Stone);
             ctx.Solid(0f, -329f, 5f, SurfaceKind.Stone);
+            ctx.Solid(5f, -329f, 4.5f, SurfaceKind.Stone);
             ctx.Solid(10f, -329f, 5f, SurfaceKind.Stone);
             // Front corners of the side walls, tucked just inside the
             // face plane (z=-277): centered ON the face they jutted 4u
@@ -951,29 +1152,30 @@ namespace AxePath
             // reads as a solid wall from the mouth (walkable straight
             // through). Rock starts behind the forge, ~44u deep.
             ctx.RockCone(-58f, -296f, 42f, 95f, gy - 2f, false);
-            ctx.Solid(-58f, -296f, 21f, SurfaceKind.Stone);
+            ctx.Solid(-58f, -296f, 34f, SurfaceKind.Stone);
             // East flank stays narrow: the grove footpath threads past it,
             // and the visual cone (not just the collider) must clear the
             // corridor, or walkers clip through the mountainside.
             ctx.RockCone(66f, -284f, 30f, 85f, gy - 2f, false);
-            ctx.Solid(66f, -284f, 15f, SurfaceKind.Stone);
+            ctx.Solid(66f, -284f, 23f, SurfaceKind.Stone);
             ctx.RockCone(0f, -375f, 55f, 130f, gy - 2f, true);
+            ctx.Solid(0f, -375f, 38f, SurfaceKind.Stone);
             refs.cavePeak = new Vec2(0f, -375f);
             refs.cavePeakR = 55f;
             refs.cavePeakH = 130f;
             ctx.RockCone(-35f, -368f, 55f, 120f, gy - 2f, true);
-            ctx.Solid(-35f, -368f, 27f, SurfaceKind.Stone);
+            ctx.Solid(-35f, -368f, 42f, SurfaceKind.Stone);
             // North-right cone stays compact and back: the grove and its
             // light live in the dell south-east of it, and a fat cone here
             // swallows both the grove and the wayfinding glow.
             ctx.RockCone(20f, -385f, 40f, 120f, gy - 2f, true);
-            ctx.Solid(20f, -385f, 20f, SurfaceKind.Stone);
+            ctx.Solid(20f, -385f, 30f, SurfaceKind.Stone);
             ctx.RockCone(-75f, -345f, 45f, 100f, gy - 2f, true);
-            ctx.Solid(-75f, -345f, 22f, SurfaceKind.Stone);
+            ctx.Solid(-75f, -345f, 34f, SurfaceKind.Stone);
             // Far-east cone: the river threads the gap between this and the
             // north-right cone on its way down from the heights.
             ctx.RockCone(150f, -380f, 50f, 110f, gy - 2f, true);
-            ctx.Solid(150f, -380f, 25f, SurfaceKind.Stone);
+            ctx.Solid(150f, -380f, 38f, SurfaceKind.Stone);
 
             // Forge, anvil.
             var forge = new GameObject("Forge");
@@ -1154,6 +1356,7 @@ namespace AxePath
                 float br = 0.7f + rand2.Next() * 0.7f;
                 var b = MeshUtil.Ball(bushes.transform, "Bush", br, 0x24402a, x, GroundH(x, z) + br * 0.5f, z, false);
                 b.transform.localScale = new Vector3(br * 2f, br * 1.1f, br * 2f);
+                if (nb % 6 == 0) refs.bushPos.Add(new Vec2(x, z));
                 if (nb % 6 == 0)
                 {
                     // Berries parent to the unscaled group, not the bush:

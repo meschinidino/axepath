@@ -12,8 +12,8 @@ namespace AxePath
         {
             var sh = Shader.Find("Skybox/Panoramic");
             if (sh == null) return null;
-            int w = 1024;
-            int h = 512;
+            int w = 2048;
+            int h = 1024;
             var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
             var top = new Color(0.012f, 0.02f, 0.05f);
             var mid = new Color(0.05f, 0.07f, 0.14f);
@@ -34,12 +34,16 @@ namespace AxePath
                     // Faint warm kiss low on one azimuth: far-off hearths.
                     float az = 0.5f + 0.5f * Mathf.Cos((u - 0.15f) * 6.28318f);
                     float hz = Mathf.Exp(-v * v / 0.004f) * az * az;
+                    // Nebula tint: teal core, violet fringe off the band.
+                    float fringe = Mathf.Exp(-Mathf.Pow((Mathf.Abs(bd) - 1.6f), 2f));
                     tex.SetPixel(x, y, c + new Color(0.055f, 0.06f, 0.10f) * lift
+                        + new Color(0.02f, 0.05f, 0.055f) * lift * lift
+                        + new Color(0.045f, 0.02f, 0.07f) * fringe
                         + new Color(0.10f, 0.055f, 0.02f) * hz);
                 }
             }
             var rng = new System.Random(42);
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 2600; i++)
             {
                 int x = rng.Next(w);
                 float u = x / (float)(w - 1);

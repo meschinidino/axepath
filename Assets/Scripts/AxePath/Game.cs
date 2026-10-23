@@ -19,14 +19,14 @@ namespace AxePath
             root.AddComponent<PerfLog>();
 
             RenderSettings.fog = true;
-            RenderSettings.fogColor = MeshUtil.C(0x1a2438);
+            RenderSettings.fogColor = MeshUtil.C(0x232f4a);
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.0016f;
+            RenderSettings.fogDensity = 0.0011f;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = MeshUtil.C(0x8fa3c7);
-            RenderSettings.ambientEquatorColor = MeshUtil.C(0x8fa3c7);
+            RenderSettings.ambientEquatorColor = MeshUtil.C(0x5a6f8f);
             RenderSettings.ambientGroundColor = MeshUtil.C(0x1d2b1f);
-            RenderSettings.ambientIntensity = 0.75f;
+            RenderSettings.ambientIntensity = 0.85f;
 
             var skyMat = SkyBuilder.BuildNightSky();
             bool hasSky = skyMat != null;
@@ -41,9 +41,10 @@ namespace AxePath
             sunGo.transform.localPosition = new Vector3(-60f, 190f, -270f);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = MeshUtil.C(0x9fb8e8);
-            sun.intensity = 0.8f;
+            sun.color = MeshUtil.C(0xa8c4f0);
+            sun.intensity = 1.05f;
             sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.85f;
             sunGo.transform.LookAt(new Vector3(0f, 0f, -50f));
             var fillGo = new GameObject("Fill");
             fillGo.transform.SetParent(root.transform, false);
@@ -67,6 +68,21 @@ namespace AxePath
 
             var stager = root.AddComponent<BootStager>();
             stager.Begin(root.transform, hud, audio, hasSky);
+        }
+
+        // Blender kit FBXs once carried the studio render backdrop
+        // ("Floor", a ~300m white plane at y=0) into the game, where it
+        // carpeted the village in a z-fighting white sheet. The exporter
+        // no longer ships it; strip it here too so no future export can
+        // reintroduce it.
+        private static void StripStudioFloor(Transform t)
+        {
+            for (int i = t.childCount - 1; i >= 0; i--)
+            {
+                var c = t.GetChild(i);
+                if (c.name == "Floor") GameObject.Destroy(c.gameObject);
+                else StripStudioFloor(c);
+            }
         }
 
         // Tail of the two-phase boot: runs after the staged world build,
@@ -96,6 +112,8 @@ namespace AxePath
             player.SetWorld(World);
             MainCam = player.Cam;
             MainCam.clearFlags = hasSky ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
+            var camFx = playerGo.AddComponent<CameraFx>();
+            camFx.Bind(MainCam);
 
             var wolfViews = new System.Collections.Generic.List<WolfView>();
             for (int i = 0; i < World.spots.wolfHomes.Count; i++)
@@ -103,6 +121,33 @@ namespace AxePath
                 wolfViews.Add(rootT.gameObject.AddComponent<WolfView>());
             }
             var npcView = rootT.gameObject.AddComponent<NpcView>();
+
+            Wildlife.Build(rootT, playerGo.transform);
+
+            // Blender showcase: modeled kit next to the code-built
+            // originals, same light, same ground, for a fair verdict.
+            var pinePrefab = Resources.Load<GameObject>("Art/BlenderPine");
+            if (pinePrefab != null)
+            {
+                var bp = GameObject.Instantiate(pinePrefab);
+                StripStudioFloor(bp.transform);
+                bp.name = "BlenderPine";
+                bp.transform.SetParent(rootT, false);
+                bp.transform.localPosition = new Vector3(5f, WorldBuilder.GroundH(5f, 192f), 192f);
+                bp.transform.localScale = Vector3.one * 1.35f;
+                World.colliders.Add(new Circle(5f, 192f, 0.6f, SurfaceKind.Wood));
+            }
+            var housePrefab = Resources.Load<GameObject>("Art/BlenderHouse");
+            if (housePrefab != null)
+            {
+                var bh = GameObject.Instantiate(housePrefab);
+                StripStudioFloor(bh.transform);
+                bh.name = "BlenderHouse";
+                bh.transform.SetParent(rootT, false);
+                bh.transform.localPosition = new Vector3(20f, WorldBuilder.GroundH(20f, 196f), 196f);
+                bh.transform.localRotation = Quaternion.Euler(0f, 200f, 0f);
+                World.colliders.Add(new Circle(20f, 196f, 3.4f, SurfaceKind.Wood));
+            }
 
             var sessionGo = new GameObject("Session");
             sessionGo.transform.SetParent(rootT, false);

@@ -218,6 +218,32 @@ namespace AxePath
             Tone_(780f, 0.35f, Sine, 0.15f, 0f, 0.14f);
         }
 
+        // Generative score: D-minor pentatonic plucks over a fifth drone.
+        // Sparse by design — silence is part of the arrangement.
+        private float musicClock;
+        private int musicStep;
+        private static readonly float[] Scale = { 146.83f, 174.61f, 196f, 220f, 261.63f, 293.66f, 349.23f };
+        public void TickMusic(float dt, bool inCave)
+        {
+            musicClock -= dt;
+            if (musicClock > 0f) return;
+            musicStep++;
+            if (inCave)
+            {
+                musicClock = 3.2f;
+                Tone_(73.42f, 3.4f, Sine, 0.07f, 73.42f, 0f);
+                if (musicStep % 3 == 0) Tone_(110f, 2.6f, Triangle, 0.04f, 110f, 0f);
+                return;
+            }
+            musicClock = 1.6f + (musicStep % 3) * 0.55f;
+            if (musicStep % 5 == 4) return; // rest bar
+            float root = Scale[(musicStep * 2 + 1) % Scale.Length];
+            Tone_(root, 1.9f, Triangle, 0.055f, root, 0f);
+            Tone_(root * 2f, 1.2f, Sine, 0.022f, root * 2f, 0.06f);
+            if (musicStep % 4 == 0) { Tone_(73.42f, 4.5f, Sine, 0.06f, 73.42f, 0f); Tone_(110f, 4.5f, Sine, 0.035f, 110f, 0f); }
+            if (musicStep % 7 == 3) Noise_(0.7f, 500f, 0.012f); // breath of wind between phrases
+        }
+
         public void PlayDeath() { Tone_(120f, 0.8f, Sine, 0.25f, 40f, 0f); }
         public void PlayClick() { Tone_(660f, 0.06f, Sine, 0.08f, 0f, 0f); }
         public void PlayStep(bool run) { Noise_(0.05f, run ? 700f : 500f, run ? 0.1f : 0.05f); }

@@ -19,6 +19,10 @@ namespace AxePath
         public float yaw;
         public float pitch;
         public bool running;
+        public bool sneaking;
+        public bool blocking;
+        public float stamina = Tuning.StaminaMax;
+        public float NoiseMul { get { return sneaking ? Tuning.SneakNoiseMul : 1f; } }
         public event Action OnStep;
 
         private GameObject axeView;
@@ -148,8 +152,12 @@ namespace AxePath
             float f = (w ? 1f : 0f) - (s ? 1f : 0f);
             float st = (d ? 1f : 0f) - (a ? 1f : 0f);
             if (Input.GetKeyDown(KeyCode.Space)) TryJump();
-            running = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && f > 0f;
-            float speed = running ? RunSpeed : WalkSpeed;
+            sneaking = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.C);
+            blocking = Input.GetMouseButton(1) && stamina > 1f;
+            bool wantRun = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && f > 0f;
+            running = wantRun && !sneaking && !blocking && stamina > 2f;
+            stamina = Logic.StaminaStep(stamina, running && (f != 0f || st != 0f), false, dt);
+            float speed = sneaking ? Tuning.SneakSpeed : blocking ? WalkSpeed * 0.55f : running ? RunSpeed : WalkSpeed;
             float sin = Mathf.Sin(yaw);
             float cos = Mathf.Cos(yaw);
             float mx = (-st * cos - f * sin) * speed * dt;
@@ -216,6 +224,15 @@ namespace AxePath
                 ap.z = zz;
                 axeView.transform.localPosition = ap;
             }
+            else if (blocking)
+            {
+                // Guard: axe high across the body, edge out.
+                axeView.transform.localRotation = Quaternion.Euler(-38f, -8f, 42f);
+                var ap = axeView.transform.localPosition;
+                ap.x = 0.08f;
+                ap.z = 0.62f;
+                axeView.transform.localPosition = ap;
+            }
             else
             {
                 axeView.transform.localRotation = Quaternion.Euler(10f, -24f, 14f);
@@ -232,11 +249,38 @@ namespace AxePath
 
         public bool TrySwing(float swingMs)
         {
-            if (swingT > 0f) return false;
+            // Recovery-cancel: once the axe has landed (past contact) a new
+            // swing may start; the settle is animation, not a lockout. Only
+            // the windup+chop itself gates the next swing.
+            if (swingT > 0f && SwingK < 0.85f) return false;
+            if (stamina < Tuning.StaminaSwingCost * 0.5f) return false;
+            stamina = Logic.StaminaStep(stamina, false, true, 0f);
             swingDur = swingMs / 1000f;
             swingT = swingDur;
             return true;
         }
+
+        // Settle-only advance for when the session is lock-paused mid-swing:
+        // the world stays frozen, but an axe already in the air finishes
+        // its arc instead of hanging until the next click.
+        public void AdvanceSwing(float dt)
+        {
+            if (swingT > 0f)
+            {
+                swingT -= dt;
+                float k = 1f - Mathf.Max(0f, swingT) / swingDur;
+                float rx, xx, zz;
+                SwingPose(k, out rx, out xx, out zz);
+                axeView.transform.localRotation = Quaternion.Euler(rx, -24f, 14f);
+                var ap = axeView.transform.localPosition;
+                ap.x = xx; ap.z = zz;
+                axeView.transform.localPosition = ap;
+            }
+            stamina = Logic.StaminaStep(stamina, false, false, dt);
+        }
+
+        public void DrainBlock() { stamina = Mathf.Max(0f, stamina - Tuning.StaminaBlockCost); }
+        public void ResetBody() { stamina = Tuning.StaminaMax; sneaking = false; blocking = false; }
 
         // Swing pose as a pure function of progress k in [0,1]: windup
         // pull-back to k=0.28, accelerating chop to contact at k=0.62,
@@ -306,6 +350,7 @@ namespace AxePath
             shakeT = 0f;
             airY = 0f;
             jumpV = 0f;
+            ResetBody();
         }
     }
 }

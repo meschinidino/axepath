@@ -76,7 +76,10 @@ fireflies (lowlands + grove); current streaks texture the river.
 
 Crosshair dot (warms gold when a swing would connect, flashes on
 connects); health pips + 3-step
-edge meter bottom-left; hands strip (axe/sketch/log) bottom-right;
+edge meter bottom-left; breath (stamina) bar under health — green at
+rest, gold while guarding, blue while sneaking, red when spent;
+loot readout (pelts/meat/berries) above the hands strip
+(axe/sketch/log) bottom-right;
 context prompt bottom-center within reach (3.4u, log 5u). No compass,
 no minimap, no damage numbers. Title with 3 save slots + controls
 card; pause overlay with resume, sensitivity and volume sliders,
