@@ -6,6 +6,18 @@
 #   UNITY_PASSWORD  Unity ID password
 # game-ci checks out a Personal seat per run; Unity no longer offers
 # offline .ulf activation for Personal, so there is no license file.
+#
+# Runbook for exit code 137 ("Killed") in the Unity jobs: something SIGKILLs
+# the editor seconds after launch, mid-assembly-reload, before it compiles a
+# single script. Incidents look like several 137s across jobs/VMs with
+# identical trees going green on rerun — never a code problem. Remedy: rerun
+# failed jobs; if the flare-up persists, wait it out.
+# NOTE (2026-10-23 incident): host dmesg showed no OOM-killer lines and free
+# reported GBs available seconds after a kill, so this is NOT host memory
+# exhaustion. Cleared since: container limits (game-ci passes no --memory),
+# game-ci kill logic (none in CLI source). Open: systemd-oomd (see its log
+# in the diagnostics output), platform governance. Update this note when
+# the killer is identified.
 name: CI
 
 on:
@@ -73,9 +85,33 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
-      - name: Fail the job when both test attempts failed
-        if: steps.tests1.outcome == 'failure' && steps.tests2.outcome != 'success'
-        run: exit 1
+      # Evidence for the next 137 incident (see runbook above). Every probe is
+      # guarded so diagnostics can never fail the job on their own, but probe
+      # *failures* stay visible (2>&1): "no OOM lines" must mean a clean log,
+      # not a broken probe. pipefail lets the (no match) markers fire.
+      # The failure() arm is load-bearing, not redundant: an if: without a
+      # status-check function is implicitly ANDed with success(), so after a
+      # hard attempt failure this step would be skipped without it. (That
+      # same gate is why the old "Fail the job..." steps always showed as
+      # skipped — they could never run, so they are gone.)
+      # No docker-inspect probe: game-ci removes containers (--rm), so there
+      # is nothing to inspect, and cgroup OOMs would show in dmesg anyway.
+      - name: Capture OOM diagnostics on failure
+        if: failure() || steps.tests1.outcome == 'failure' || steps.tests2.outcome == 'failure'
+        run: |
+          set -o pipefail
+          sudo -n true 2>&1 && echo 'sudo: OK' || echo 'sudo: UNAVAILABLE'
+          echo '--- memory / disk ---'
+          free -h || true
+          df -h / /tmp 2>&1 | head -6 || true
+          echo '--- kernel OOM lines (dmesg) ---'
+          sudo -n dmesg 2>&1 | grep -aiE 'oom|killed process' | tail -20 || echo '(no matching dmesg lines)'
+          echo '--- kernel tail (unfiltered) ---'
+          sudo -n dmesg 2>&1 | tail -6 || true
+          echo '--- system journal: oom/docker/memory warnings ---'
+          sudo -n journalctl -b -p warning --no-pager 2>&1 | grep -aiE 'oom|kill|docker|memory' | tail -20 || echo '(no matching journal lines)'
+          echo '--- systemd-oomd log ---'
+          sudo -n journalctl -b -u systemd-oomd --no-pager 2>&1 | tail -10 || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -137,9 +173,24 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
-      - name: Fail the job when both build attempts failed
-        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
-        run: exit 1
+      # Same evidence collector as the test job (see runbook and the comment
+      # there). failure() defeats the implicit success() gate.
+      - name: Capture OOM diagnostics on failure
+        if: failure() || steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure'
+        run: |
+          set -o pipefail
+          sudo -n true 2>&1 && echo 'sudo: OK' || echo 'sudo: UNAVAILABLE'
+          echo '--- memory / disk ---'
+          free -h || true
+          df -h / /tmp 2>&1 | head -6 || true
+          echo '--- kernel OOM lines (dmesg) ---'
+          sudo -n dmesg 2>&1 | grep -aiE 'oom|killed process' | tail -20 || echo '(no matching dmesg lines)'
+          echo '--- kernel tail (unfiltered) ---'
+          sudo -n dmesg 2>&1 | tail -6 || true
+          echo '--- system journal: oom/docker/memory warnings ---'
+          sudo -n journalctl -b -p warning --no-pager 2>&1 | grep -aiE 'oom|kill|docker|memory' | tail -20 || echo '(no matching journal lines)'
+          echo '--- systemd-oomd log ---'
+          sudo -n journalctl -b -u systemd-oomd --no-pager 2>&1 | tail -10 || true
       - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS
