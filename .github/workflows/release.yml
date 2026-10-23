@@ -5,6 +5,12 @@
 #   1. CHANGELOG entry under [Unreleased], then rename it to [X.Y.Z].
 #   2. Echo the version into VERSION, commit, merge to main.
 #   3. git tag vX.Y.Z && git push origin vX.Y.Z
+#
+# 137 runbook: same story as CI (see the runbook comment in ci.yml) — exit
+# code 137 is the editor SIGKILLed seconds after launch, fleet flakiness,
+# never this repo. Rerun failed jobs. The diagnostics step below captures
+# evidence on the Linux leg (137 is a Unix phenomenon; the probes are
+# Linux-only, so the Windows leg skips it).
 name: Release
 
 on:
@@ -88,10 +94,28 @@ jobs:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildName: AxePath
           buildsPath: build
-      - name: Fail the job when both build attempts failed
-        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
+      # Same 137 evidence collector as CI (see the runbook comments in
+      # ci.yml). Ubuntu leg only: the probes are Linux-only and 137 is a
+      # Unix phenomenon. failure() defeats the implicit success() gate (see
+      # ci.yml); the old "Fail the job..." step was dead for the same reason
+      # and is gone.
+      - name: Capture OOM diagnostics on failure
+        if: matrix.os == 'ubuntu-24.04' && (failure() || steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure')
         shell: bash
-        run: exit 1
+        run: |
+          set -o pipefail
+          sudo -n true 2>&1 && echo 'sudo: OK' || echo 'sudo: UNAVAILABLE'
+          echo '--- memory / disk ---'
+          free -h || true
+          df -h / /tmp 2>&1 | head -6 || true
+          echo '--- kernel OOM lines (dmesg) ---'
+          sudo -n dmesg 2>&1 | grep -aiE 'oom|killed process' | tail -20 || echo '(no matching dmesg lines)'
+          echo '--- kernel tail (unfiltered) ---'
+          sudo -n dmesg 2>&1 | tail -6 || true
+          echo '--- system journal: oom/docker/memory warnings ---'
+          sudo -n journalctl -b -p warning --no-pager 2>&1 | grep -aiE 'oom|kill|docker|memory' | tail -20 || echo '(no matching journal lines)'
+          echo '--- systemd-oomd log ---'
+          sudo -n journalctl -b -u systemd-oomd --no-pager 2>&1 | tail -10 || true
       - name: Zip the macOS .app
         if: matrix.targetPlatform == 'StandaloneOSX'
         shell: bash
