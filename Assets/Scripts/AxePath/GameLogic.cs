@@ -65,6 +65,13 @@ namespace AxePath
         public const int KillsPerStep = 1;
         public const int IronwoodLogsNeeded = 1;
         public const float SharpenHoldMul = 0.2f;
+        public const float StaminaMax = 100f;
+        public const float StaminaSprintDrain = 22f;
+        public const float StaminaRegen = 26f;
+        public const float StaminaSwingCost = 10f;
+        public const float StaminaBlockCost = 22f;
+        public const float SneakNoiseMul = 0.45f;
+        public const float SneakSpeed = 2.2f;
     }
 
     public static class Trust
@@ -106,7 +113,7 @@ namespace AxePath
         public const string TitleHead = "AXE PATH";
         public const string TitleSub = "You are no one. The forest does not care. Walk anyway.";
         public const string TitleExport = "Export current slot";
-        public const string TitleControls = "WASD / arrows — move · Mouse — look · Shift — run · E — talk, take, read · Click — swing, advance · Space — jump";
+        public const string TitleControls = "WASD — move · Mouse — look · Shift — run · Ctrl — sneak · Click — swing · Hold right-click — guard · Space — jump · E — use · F — eat meat · R — eat berries";
         public const string BookClose = "Close (E)";
         public const string ModalOk = "OK";
         public const string ModalCancel = "Cancel";
@@ -163,6 +170,10 @@ namespace AxePath
         public const string ExportEmpty = "Slot is empty — nothing to export.";
         public const string ExportDonePrefix = "Save exported to ";
         public const string PromptStumbled = "The dark thickens... you stumble out at the village edge, empty-handed.";
+        public const string PromptForage = "Gather berries (E)";
+        public const string PromptBlocked = "Your guard turns the teeth aside.";
+        public const string PromptLoot = "You take meat and pelt from the wolf.";
+        public const string PromptAte = "You eat. Strength returns.";
         public const string PromptGrowl = "A growl in the dark. Walk, do not run.";
         public const string PromptHowl = "A howl rolls through the trees.";
 
@@ -285,6 +296,9 @@ namespace AxePath
         public IronwoodState ironwood;
         public BookState book;
         public FlagsState flags;
+        public int wolfPelts;
+        public int wolfMeat;
+        public int berries;
     }
 
     public class TalkResult
@@ -522,6 +536,45 @@ namespace AxePath
                 return true;
             }
             return false;
+        }
+
+        // --- Survival economy: the forest feeds you if you work for it. ---
+        public static void LootWolf(WorldState w) { w.wolfPelts += 1; w.wolfMeat += 1; }
+
+        public static bool EatMeat(WorldState w)
+        {
+            if (w.wolfMeat <= 0 || w.player.hp >= Tuning.WolfHitsToKill) return false;
+            w.wolfMeat -= 1; w.player.hp += 1; return true;
+        }
+
+        public static bool EatBerries(WorldState w)
+        {
+            if (w.berries <= 0 || w.player.hp >= Tuning.WolfHitsToKill) return false;
+            w.berries -= 1; w.player.hp += 1; return true;
+        }
+
+        public static void Forage(WorldState w) { w.berries += 2; }
+
+        // Stamina step, pure: sprint/swing drain, everything else regens.
+        public static float StaminaStep(float stamina, bool sprinting, bool justSwung, float dt)
+        {
+            float s = stamina;
+            if (justSwung) s -= Tuning.StaminaSwingCost;
+            if (sprinting) s -= Tuning.StaminaSprintDrain * dt;
+            else s += Tuning.StaminaRegen * dt;
+            return Math.Max(0f, Math.Min(Tuning.StaminaMax, s));
+        }
+
+        // A raised axe turns teeth aside — if there is breath to hold it.
+        public static bool BlockStopsBite(bool blocking, float stamina)
+        {
+            return blocking && stamina > 1f;
+        }
+
+        // Pack law, pure: a chasing wolf drags denmates within earshot in.
+        public static bool PackMateAlerts(string mateState, float distToChaser)
+        {
+            return (mateState == "idle" || mateState == "warn") && distToChaser <= 48f;
         }
 
         // A timed hop clears the teeth: lunges only connect below this height.

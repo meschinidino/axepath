@@ -125,6 +125,8 @@ namespace AxePath
         private float playT;
         private float howlT;
         private DropPos pendingDeathPos;
+        private readonly HashSet<int> foraged = new HashSet<int>();
+        private float musicT;
 
         public void StartSession(GameWorld world, ActorRefs actors, PlayerController p, Hud h, AudioSynth audio, List<WolfView> wolfViews, NpcView npcView)
         {
@@ -261,6 +263,8 @@ namespace AxePath
             Player.SetAxeEdge(Logic.EdgeStep(W), W.axe.have);
             Hud.SetHp(W.player.hp);
             Hud.SetHands(W.axe.have, W.book.have, W.ironwood.have);
+            Hud.SetStamina(Player.stamina / Tuning.StaminaMax, Player.sneaking, Player.blocking);
+            Hud.SetLoot(W.wolfPelts, W.wolfMeat, W.berries);
             Hud.SetBanner(saver.sessionOnly ? Lines.BannerNoSave : "");
             RefsSync();
         }
@@ -381,6 +385,11 @@ namespace AxePath
             // the ironwood log's. Closest approach is ~2u off the edge.
             cands.Add(new InteractTarget { id = "guide", x = refs.guidePos.x, z = refs.guidePos.z, label = Lines.PromptGuide, reach = 4.5f });
             cands.Add(new InteractTarget { id = "waystone", x = refs.waystonePos.x, z = refs.waystonePos.z, label = Lines.PromptWaystone });
+            for (int i = 0; i < refs.bushPos.Count; i++)
+            {
+                if (foraged.Contains(i)) continue;
+                cands.Add(new InteractTarget { id = "forage", bi = i, x = refs.bushPos[i].x, z = refs.bushPos[i].z, label = Lines.PromptForage, reach = 2.8f });
+            }
             InteractTarget best = null;
             float bestD = float.MaxValue;
             foreach (var c in cands)
@@ -493,6 +502,13 @@ namespace AxePath
             if (t.id == "waystone")
             {
                 SayOne("You", Lines.WaystoneRune);
+            }
+            if (t.id == "forage")
+            {
+                foraged.Add(t.bi);
+                Logic.Forage(W);
+                RefreshHud();
+                Hud.SetPrompt("Berries gathered - press R to eat.", 1.6f);
             }
         }
 
@@ -988,6 +1004,7 @@ namespace AxePath
                 {
                     wolf.brain.alive = false;
                     Logic.UseAxe(W, "hit");
+                    Logic.LootWolf(W);
                     RefreshHud();
                     Hud.SetPrompt(Lines.PromptWolfStill, 2.2f);
                     hitStop = Tuning.KillStopSecs;
@@ -1291,6 +1308,14 @@ namespace AxePath
                 else if (dialogue != null) AdvanceDialogue();
                 else if (IsLocked() && !OverlaysOpen()) TryAttack();
             }
+            if (Input.GetKeyDown(KeyCode.F) && W != null)
+            {
+                if (Logic.EatMeat(W)) { audio.PlayClick(); RefreshHud(); Hud.SetPrompt(Lines.PromptAte, 1.6f); Autosave(Lines.LabelGenPrefix + W.generation); }
+            }
+            if (Input.GetKeyDown(KeyCode.R) && W != null)
+            {
+                if (Logic.EatBerries(W)) { audio.PlayClick(); RefreshHud(); Hud.SetPrompt(Lines.PromptAte, 1.6f); Autosave(Lines.LabelGenPrefix + W.generation); }
+            }
             if (IsLocked())
             {
                 float dx = Input.GetAxis("Mouse X");
@@ -1309,6 +1334,14 @@ namespace AxePath
             if (Paused())
             {
                 Hud.ShowFirstLock(!IsLocked() && !OverlaysOpen() && !Hud.IsDeathOpen());
+                // Lock-pause (unfocused window) must not strand an axe
+                // mid-swing: settle the swing and let its contact land.
+                // Wolves, time, and movement stay frozen.
+                if (CurrentState == State.Play && !bookOpen && !Hud.IsModalOpen() && !Hud.IsDeathOpen() && W != null && W.player.alive)
+                {
+                    Player.AdvanceSwing(Mathf.Min(0.05f, Time.deltaTime));
+                    if (swingWaiting && Player.SwingK >= PlayerController.ContactK) ResolveSwing();
+                }
                 return;
             }
             Hud.ShowFirstLock(false);
@@ -1360,7 +1393,7 @@ namespace AxePath
             // you still wound at the lone-wolf rate.
             foreach (var u in Wolves)
             {
-                var wres = Logic.WolfStep(u.brain, p.x, p.z, Player.running, W.skill.noiseMul, dt, null);
+                var wres = Logic.WolfStep(u.brain, p.x, p.z, Player.running, W.skill.noiseMul * Player.NoiseMul, dt, null);
                 foreach (var ev in wres.events)
                 {
                     if (ev == "growl")
@@ -1378,6 +1411,14 @@ namespace AxePath
                         {
                             audio.PlaySnap();
                             Hud.SetPrompt(Lines.PromptDodged, 1.6f);
+                        }
+                        else if (Logic.BlockStopsBite(Player.blocking, Player.stamina))
+                        {
+                            Player.DrainBlock();
+                            audio.PlayClang(0.3f);
+                            Player.Kick(Tuning.ChopShake);
+                            Hud.SetPrompt(Lines.PromptBlocked, 1.6f);
+                            RefreshHud();
                         }
                         else
                         {
@@ -1410,6 +1451,20 @@ namespace AxePath
                     u.brain.pos.z += wres.move.z * sp * dt;
                 }
             }
+            // Pack law: a chase drags nearby denmates into the hunt.
+            foreach (var chaser in Wolves)
+            {
+                if (!chaser.brain.alive || chaser.brain.state != "chase") continue;
+                foreach (var mate in Wolves)
+                {
+                    if (mate == chaser || !mate.brain.alive) continue;
+                    float dd = Gdist(chaser.brain.pos.x, chaser.brain.pos.z, mate.brain.pos.x, mate.brain.pos.z);
+                    if (Logic.PackMateAlerts(mate.brain.state, dd)) { mate.brain.state = "warn"; mate.brain.warnT = 0.7f; }
+                }
+            }
+            Hud.SetStamina(Player.stamina / Tuning.StaminaMax, Player.sneaking, Player.blocking);
+            musicT -= dt;
+            if (musicT <= 0f) { musicT = 0.5f; audio.TickMusic(0.5f, p.z < -260f); }
 
             howlT -= dt;
             if (howlT <= 0f)

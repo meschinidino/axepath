@@ -61,6 +61,10 @@ namespace AxePath
         private Text handAxe;
         private Text handBook;
         private Text handLog;
+        private Image staminaFill;
+        private Text staminaCap;
+        private Text lootText;
+        private RawImage vignetteImg;
         private Transform slotWrap;
         private Action modalOkFn;
         private Action modalCancelFn;
@@ -73,7 +77,10 @@ namespace AxePath
         {
             if (uiFont == null)
             {
-                uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                // Engraved serif first: the Bethesda register is carved stone,
+                // not a system sans. Falls back cleanly where serif is absent.
+                uiFont = Font.CreateDynamicFontFromOSFont(new string[] { "Georgia", "Palatino Linotype", "Book Antiqua", "Times New Roman", "Times" }, 18);
+                if (uiFont == null) uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 if (uiFont == null) uiFont = Font.CreateDynamicFontFromOSFont(new string[] { "Arial", "Helvetica", "Verdana" }, 16);
             }
             return uiFont;
@@ -228,6 +235,43 @@ namespace AxePath
             handLog = MkText(hands.transform, "Log", 16, TextAnchor.MiddleRight);
             Place(handLog.GetComponent<RectTransform>(), 1f, 0.5f, 1f, 0.5f, 90f, 26f);
             handLog.text = Lines.HudHandLog;
+
+            // Stamina: a thin green breath bar under health. Survival is
+            // readable at a glance, never a number.
+            var stamBg = new GameObject("StaminaBg");
+            stamBg.transform.SetParent(hudRoot.transform, false);
+            var stamBgImg = stamBg.AddComponent<Image>();
+            stamBgImg.color = new Color(0.05f, 0.08f, 0.05f, 0.85f);
+            Place(stamBg.GetComponent<RectTransform>(), 0f, 0f, 0f, 0f, 168f, 12f);
+            stamBg.GetComponent<RectTransform>().anchoredPosition = new Vector2(24f, 98f);
+            var stamFillGo = new GameObject("StaminaFill");
+            stamFillGo.transform.SetParent(stamBg.transform, false);
+            staminaFill = stamFillGo.AddComponent<Image>();
+            staminaFill.color = new Color(0.35f, 0.75f, 0.35f);
+            var sfRt = staminaFill.GetComponent<RectTransform>();
+            sfRt.anchorMin = Vector2.zero; sfRt.anchorMax = Vector2.one;
+            sfRt.offsetMin = new Vector2(2f, 2f); sfRt.offsetMax = new Vector2(-2f, -2f);
+            staminaCap = MkText(hudRoot.transform, "StaminaCap", 13, TextAnchor.MiddleLeft);
+            Place(staminaCap.GetComponent<RectTransform>(), 0f, 0f, 0f, 0f, 120f, 20f);
+            staminaCap.GetComponent<RectTransform>().anchoredPosition = new Vector2(24f, 112f);
+            staminaCap.text = "breath";
+            staminaCap.color = new Color(1f, 1f, 1f, 0.6f);
+            lootText = MkText(hudRoot.transform, "Loot", 15, TextAnchor.MiddleRight);
+            Place(lootText.GetComponent<RectTransform>(), 1f, 0f, 1f, 0f, 420f, 24f);
+            lootText.GetComponent<RectTransform>().anchoredPosition = new Vector2(-24f, 58f);
+            lootText.color = new Color(1f, 1f, 1f, 0.75f);
+
+            // Permanent soft vignette: the world is watched through a lens.
+            var vigGo = new GameObject("Vignette");
+            vigGo.transform.SetParent(hudRoot.transform, false);
+            vignetteImg = vigGo.AddComponent<RawImage>();
+            vignetteImg.texture = RadialTexture();
+            vignetteImg.color = new Color(0f, 0f, 0f, 0.34f);
+            var vigRt = vigGo.GetComponent<RectTransform>();
+            vigRt.anchorMin = Vector2.zero; vigRt.anchorMax = Vector2.one;
+            vigRt.offsetMin = Vector2.zero; vigRt.offsetMax = Vector2.zero;
+            vignetteImg.raycastTarget = false;
+            vigGo.transform.SetAsFirstSibling();
 
             var promptPanel = MkPanel(hudRoot.transform, "Prompt", 0.72f);
             Place(promptPanel.GetComponent<RectTransform>(), 0.5f, 0f, 0.5f, 0f, 640f, 40f);
@@ -704,6 +748,22 @@ namespace AxePath
             handAxe.color = axe ? Orange : new Color(1f, 1f, 1f, 0.35f);
             handBook.color = book ? Orange : new Color(1f, 1f, 1f, 0.35f);
             handLog.color = iron >= 1 ? Orange : new Color(1f, 1f, 1f, 0.35f);
+        }
+
+        public void SetStamina(float frac01, bool sneaking, bool blocking)
+        {
+            if (staminaFill == null) return;
+            float f = Mathf.Clamp01(frac01);
+            var rt = staminaFill.GetComponent<RectTransform>();
+            rt.anchorMax = new Vector2(f, 1f);
+            staminaFill.color = blocking ? new Color(0.95f, 0.8f, 0.3f) : sneaking ? new Color(0.4f, 0.6f, 0.9f) : f < 0.25f ? new Color(0.85f, 0.3f, 0.2f) : new Color(0.35f, 0.75f, 0.35f);
+            if (staminaCap != null) staminaCap.text = blocking ? "guard" : sneaking ? "sneaking" : "breath";
+        }
+
+        public void SetLoot(int pelts, int meat, int berries)
+        {
+            if (lootText == null) return;
+            lootText.text = "pelts " + pelts + "  ·  meat " + meat + " (F)  ·  berries " + berries + " (R)";
         }
 
         public void SetPrompt(string text, float holdSecs)

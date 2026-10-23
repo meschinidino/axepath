@@ -25,6 +25,10 @@ namespace AxePath
         private List<Material> eyeMats = new List<Material>();
         private WolfState brain;
         private WolfFx fx;
+        private Transform[] legs = new Transform[4];
+        private Transform headPivot;
+        private Transform tailPivot;
+        private float gaitPhase;
 
         public void Bind(GameObject root, List<GameObject> eyes, List<Material> furMats, WolfState brain, WolfFx fx)
         {
@@ -33,6 +37,10 @@ namespace AxePath
             this.furMats = furMats;
             this.brain = brain;
             this.fx = fx;
+            string[] legNames = { "LegFL", "LegFR", "LegBL", "LegBR" };
+            for (int i = 0; i < 4; i++) legs[i] = root.transform.Find(legNames[i]);
+            headPivot = root.transform.Find("HeadPivot");
+            tailPivot = root.transform.Find("TailPivot");
             eyeMats.Clear();
             foreach (var e in eyes)
             {
@@ -114,6 +122,27 @@ namespace AxePath
                 bp.y = WorldBuilder.GroundH(bp.x, bp.z) + Mathf.Abs(Mathf.Sin(t * (brain.state == "chase" ? 10f : 3f))) * 0.06f;
                 root.transform.localPosition = bp;
             }
+            // Gait: diagonal pairs swing together; pace follows intent.
+            float pace = !brain.alive ? 0f : brain.state == "chase" ? 11f : brain.state == "stalk" ? 6f : brain.state == "warn" ? 2.5f : 0.8f;
+            gaitPhase += dt * pace;
+            float amp = brain.state == "chase" ? 38f : 22f;
+            for (int i = 0; i < 4; i++)
+            {
+                if (legs[i] == null) continue;
+                float off = (i == 0 || i == 3) ? 0f : Mathf.PI;
+                float swing = brain.alive ? Mathf.Sin(gaitPhase + off) * amp : 65f;
+                legs[i].localRotation = Quaternion.Euler(swing, 0f, 0f);
+            }
+            if (headPivot != null)
+            {
+                float pitch = !brain.alive ? 25f : brain.state == "windup" ? -18f : brain.state == "warn" ? 14f : brain.state == "chase" ? 6f : Mathf.Sin(t * 1.7f) * 4f;
+                headPivot.localRotation = Quaternion.Slerp(headPivot.localRotation, Quaternion.Euler(pitch, 0f, 0f), Mathf.Min(1f, dt * 6f));
+            }
+            if (tailPivot != null)
+            {
+                float wag = brain.alive ? Mathf.Sin(gaitPhase * 0.6f) * 10f : 0f;
+                tailPivot.localRotation = Quaternion.Euler(0f, wag, brain.alive ? -8f : 20f);
+            }
         }
 
         public static void FaceToward(Transform tr, float fromX, float fromZ, float toX, float toZ, float dt, float rate)
@@ -146,13 +175,22 @@ namespace AxePath
                 var dp = dwarf.transform.localPosition;
                 dp.y = WorldBuilder.GroundH(dp.x, dp.z) + Mathf.Sin(t * 1.4f) * 0.02f;
                 dwarf.transform.localPosition = dp;
+                var forgeArm = dwarf.transform.Find("ForgeArm");
                 if (Near(dwarf.transform.localPosition, playerPos, 3.4f))
                 {
                     WolfView.FaceToward(dwarf.transform, dp.x, dp.z, playerPos.x, playerPos.z, dt, 8f);
+                    if (forgeArm != null) forgeArm.localRotation = Quaternion.Slerp(forgeArm.localRotation, Quaternion.Euler(-12f, 0f, 0f), Mathf.Min(1f, dt * 5f));
                 }
                 else
                 {
                     EaseYaw(dwarf.transform, 0.4f, dt);
+                    // Hammer loop: raise slow, strike fast, rest, repeat.
+                    if (forgeArm != null)
+                    {
+                        float cyc = (t % 2.4f) / 2.4f;
+                        float ang = cyc < 0.55f ? Mathf.Lerp(-8f, -68f, cyc / 0.55f) : cyc < 0.68f ? Mathf.Lerp(-68f, 6f, (cyc - 0.55f) / 0.13f) : 6f - (cyc - 0.68f) * 40f;
+                        forgeArm.localRotation = Quaternion.Euler(ang, 0f, 0f);
+                    }
                 }
             }
             if (Near(librarian.transform.localPosition, playerPos, 3.4f))

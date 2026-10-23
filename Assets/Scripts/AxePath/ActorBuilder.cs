@@ -51,8 +51,20 @@ namespace AxePath
             var beardMesh = MeshUtil.TaperMesh(0.02f, 0.24f, 0.7f);
             var beard = MeshUtil.Tapered(dwarf.transform, "Beard", beardMesh, 0xcfc4a8, 0f, 1.05f, 0.22f);
             beard.transform.localRotation = Quaternion.Euler(180f, 0f, 0f);
+            MeshUtil.Box(dwarf.transform, "Belt", 0.94f, 0.14f, 0.64f, 0x2c2118, 0f, 0.42f, 0f);
+            MeshUtil.Box(dwarf.transform, "Buckle", 0.16f, 0.12f, 0.06f, 0xd9a441, 0f, 0.42f, 0.34f);
+            MeshUtil.Ball(dwarf.transform, "Nose", 0.09f, 0xb08a68, 0f, 1.42f, 0.28f, false);
+            MeshUtil.Box(dwarf.transform, "Brow", 0.34f, 0.07f, 0.06f, 0x8a7a5a, 0f, 1.56f, 0.27f);
             MeshUtil.Box(dwarf.transform, "Arm", 0.22f, 0.5f, 0.22f, 0x5a4630, -0.58f, 0.7f, 0f);
-            MeshUtil.Box(dwarf.transform, "Arm", 0.22f, 0.5f, 0.22f, 0x5a4630, 0.58f, 0.7f, 0f);
+            MeshUtil.Ball(dwarf.transform, "Hand", 0.11f, 0xb08a68, -0.58f, 0.42f, 0f, false);
+            // Forge arm on a shoulder pivot: he works the anvil in loops.
+            var forgeArm = new GameObject("ForgeArm");
+            forgeArm.transform.SetParent(dwarf.transform, false);
+            forgeArm.transform.localPosition = new Vector3(0.58f, 0.95f, 0f);
+            MeshUtil.Box(forgeArm.transform, "Arm", 0.22f, 0.5f, 0.22f, 0x5a4630, 0f, -0.25f, 0f);
+            MeshUtil.Ball(forgeArm.transform, "Hand", 0.11f, 0xb08a68, 0f, -0.52f, 0f, false);
+            MeshUtil.Box(forgeArm.transform, "Hammer", 0.08f, 0.5f, 0.08f, 0x6b5136, 0.04f, -0.4f, 0.1f);
+            MeshUtil.Box(forgeArm.transform, "HammerHead", 0.22f, 0.14f, 0.14f, 0x3a3f46, 0.04f, -0.13f, 0.1f);
             MeshUtil.Box(dwarf.transform, "Boot", 0.26f, 0.3f, 0.26f, 0x2c2f34, -0.2f, 0.15f, 0f);
             MeshUtil.Box(dwarf.transform, "Boot", 0.26f, 0.3f, 0.26f, 0x2c2f34, 0.2f, 0.15f, 0f);
             refs.dwarf = dwarf;
@@ -64,8 +76,11 @@ namespace AxePath
             librarian.transform.localRotation = Quaternion.Euler(0f, -0.5f * 57.3f, 0f);
             var robeMesh = MeshUtil.TaperMesh(0.02f, 0.55f, 1.7f);
             MeshUtil.Tapered(librarian.transform, "Robe", robeMesh, 0x3a4a6b, 0f, 0.85f, 0f);
+            MeshUtil.Box(librarian.transform, "Sash", 0.6f, 0.1f, 0.6f, 0xd9a441, 0f, 1.05f, 0f);
             MeshUtil.Ball(librarian.transform, "Head", 0.26f, 0xc09a78, 0f, 1.85f, 0f, false);
+            MeshUtil.Tapered(librarian.transform, "Hood", MeshUtil.TaperMesh(0.02f, 0.3f, 0.45f), 0x2c3a5a, 0f, 2.02f, 0f);
             MeshUtil.Box(librarian.transform, "Book", 0.5f, 0.08f, 0.3f, 0xd9cfae, 0f, 1.1f, 0.3f);
+            MeshUtil.Box(librarian.transform, "BookSpine", 0.52f, 0.1f, 0.08f, 0x7a2a2a, 0f, 1.1f, 0.16f);
             refs.librarian = librarian;
 
             // Wolf pack (each faces +z like the slice; the game orients them
@@ -95,17 +110,34 @@ namespace AxePath
             wolf.transform.SetParent(parent, false);
             wolf.transform.localPosition = new Vector3(x, WorldBuilder.GroundH(x, z), z);
             Part(wolf.transform, "Body", 0.55f, 0.5f, 1.3f, fur, 0f, 0.62f, 0f, furMats);
-            Part(wolf.transform, "Head", 0.42f, 0.4f, 0.5f, fur, 0f, 0.95f, 0.8f, furMats);
-            Part(wolf.transform, "Snout", 0.2f, 0.2f, 0.3f, 0x1a1d22, 0f, 0.85f, 1.15f, furMats);
-            var eyeL = MeshUtil.Ball(wolf.transform, "Eye", 0.05f, 0xff8a3a, -0.13f, 1.02f, 1.02f, true);
-            var eyeR = MeshUtil.Ball(wolf.transform, "Eye", 0.05f, 0xff8a3a, 0.13f, 1.02f, 1.02f, true);
+            var headPivot = new GameObject("HeadPivot");
+            headPivot.transform.SetParent(wolf.transform, false);
+            headPivot.transform.localPosition = new Vector3(0f, 0.85f, 0.55f);
+            Part(headPivot.transform, "Head", 0.42f, 0.4f, 0.5f, fur, 0f, 0.1f, 0.25f, furMats);
+            Part(headPivot.transform, "Snout", 0.2f, 0.2f, 0.3f, 0x1a1d22, 0f, 0f, 0.6f, furMats);
+            var eyeL = MeshUtil.Ball(headPivot.transform, "Eye", 0.05f, 0xff8a3a, -0.13f, 0.17f, 0.47f, true);
+            var eyeR = MeshUtil.Ball(headPivot.transform, "Eye", 0.05f, 0xff8a3a, 0.13f, 0.17f, 0.47f, true);
             eyes.Add(eyeL);
             eyes.Add(eyeR);
-            Part(wolf.transform, "Tail", 0.12f, 0.12f, 0.7f, fur, 0f, 0.75f, -0.9f, furMats);
+            Part(wolf.transform, "Hackles", 0.4f, 0.22f, 0.9f, 0x2e3238, 0f, 0.92f, -0.1f, furMats);
+            Part(headPivot.transform, "Ear", 0.12f, 0.22f, 0.06f, fur, -0.15f, 0.37f, 0.17f, furMats);
+            Part(headPivot.transform, "Ear", 0.12f, 0.22f, 0.06f, fur, 0.15f, 0.37f, 0.17f, furMats);
+            Part(headPivot.transform, "Nose", 0.14f, 0.1f, 0.08f, 0x0c0e10, 0f, -0.03f, 0.77f, furMats);
+            var tailPivot = new GameObject("TailPivot");
+            tailPivot.transform.SetParent(wolf.transform, false);
+            tailPivot.transform.localPosition = new Vector3(0f, 0.75f, -0.6f);
+            Part(tailPivot.transform, "Tail", 0.12f, 0.12f, 0.7f, fur, 0f, 0f, -0.3f, furMats);
+            // Jointed legs: pivot at the hip, limb hangs below it so the
+            // view can swing a real gait instead of sliding the body.
+            string[] legNames = { "LegFL", "LegFR", "LegBL", "LegBR" };
             float[,] legs = new float[,] { {-0.2f,0.4f},{0.2f,0.4f},{-0.2f,-0.4f},{0.2f,-0.4f} };
             for (int i = 0; i < 4; i++)
             {
-                Part(wolf.transform, "Leg", 0.14f, 0.5f, 0.14f, fur, legs[i, 0], 0.25f, legs[i, 1], furMats);
+                var pivot = new GameObject(legNames[i]);
+                pivot.transform.SetParent(wolf.transform, false);
+                pivot.transform.localPosition = new Vector3(legs[i, 0], 0.5f, legs[i, 1]);
+                Part(pivot.transform, "Limb", 0.14f, 0.5f, 0.14f, fur, 0f, -0.25f, 0f, furMats);
+                Part(pivot.transform, "Paw", 0.16f, 0.1f, 0.22f, 0x1a1d22, 0f, -0.47f, 0.04f, furMats);
             }
             return wolf;
         }
