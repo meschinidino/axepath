@@ -80,15 +80,17 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
-      - name: Fail the job when both test attempts failed
-        if: steps.tests1.outcome == 'failure' && steps.tests2.outcome != 'success'
-        run: exit 1
       # Proof for the next 137 incident (see runbook above): the kernel logs
       # OOM kills host-side even when Unity dies inside docker. dmesg needs
       # root on these runners; every probe is guarded so a diagnostics
       # failure can never fail the job on its own.
+      # The failure() arm is load-bearing, not redundant: an if: without a
+      # status-check function is implicitly ANDed with success(), so after a
+      # hard attempt failure this step would be skipped without it. (That
+      # same gate is why the old "Fail the job..." steps always showed as
+      # skipped — they could never run, so they are gone.)
       - name: Capture OOM diagnostics on failure
-        if: steps.tests1.outcome == 'failure' || steps.tests2.outcome == 'failure'
+        if: failure() || steps.tests1.outcome == 'failure' || steps.tests2.outcome == 'failure'
         run: |
           echo '--- memory ---'
           free -h || true
@@ -157,13 +159,12 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
-      - name: Fail the job when both build attempts failed
-        if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
-        run: exit 1
       # Same OOM proof as the test job (see runbook above). Guarded so it
-      # can never fail the job on its own.
+      # can never fail the job on its own. failure() defeats the implicit
+      # success() gate (see test job); the old "Fail the job..." step was
+      # dead for the same reason and is gone.
       - name: Capture OOM diagnostics on failure
-        if: steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure'
+        if: failure() || steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure'
         run: |
           echo '--- memory ---'
           free -h || true
