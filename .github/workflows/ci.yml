@@ -6,6 +6,13 @@
 #   UNITY_PASSWORD  Unity ID password
 # game-ci checks out a Personal seat per run; Unity no longer offers
 # offline .ulf activation for Personal, so there is no license file.
+#
+# Runbook for exit code 137 ("Killed") in the Unity jobs: that is the runner
+# host's OOM killer SIGKILLing the editor seconds after launch, before it
+# compiles a single script — fleet memory pressure, not this repo. Incidents
+# look like several 137s across jobs/VMs with identical trees going green on
+# rerun. Remedy: rerun failed jobs; if the flare-up persists, wait it out.
+# The diagnostics steps below capture dmesg proof when this strikes.
 name: CI
 
 on:
@@ -76,6 +83,19 @@ jobs:
       - name: Fail the job when both test attempts failed
         if: steps.tests1.outcome == 'failure' && steps.tests2.outcome != 'success'
         run: exit 1
+      # Proof for the next 137 incident (see runbook above): the kernel logs
+      # OOM kills host-side even when Unity dies inside docker. dmesg needs
+      # root on these runners; every probe is guarded so a diagnostics
+      # failure can never fail the job on its own.
+      - name: Capture OOM diagnostics on failure
+        if: steps.tests1.outcome == 'failure' || steps.tests2.outcome == 'failure'
+        run: |
+          echo '--- memory ---'
+          free -h || true
+          echo '--- OOM killer activity (dmesg) ---'
+          sudo dmesg --time-format=iso 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
+          echo '--- OOM killer activity (journal) ---'
+          journalctl -k 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -140,6 +160,17 @@ jobs:
       - name: Fail the job when both build attempts failed
         if: steps.build1.outcome == 'failure' && steps.build2.outcome != 'success'
         run: exit 1
+      # Same OOM proof as the test job (see runbook above). Guarded so it
+      # can never fail the job on its own.
+      - name: Capture OOM diagnostics on failure
+        if: steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure'
+        run: |
+          echo '--- memory ---'
+          free -h || true
+          echo '--- OOM killer activity (dmesg) ---'
+          sudo dmesg --time-format=iso 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
+          echo '--- OOM killer activity (journal) ---'
+          journalctl -k 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
       - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS
