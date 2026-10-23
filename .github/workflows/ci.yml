@@ -7,12 +7,16 @@
 # game-ci checks out a Personal seat per run; Unity no longer offers
 # offline .ulf activation for Personal, so there is no license file.
 #
-# Runbook for exit code 137 ("Killed") in the Unity jobs: that is the runner
-# host's OOM killer SIGKILLing the editor seconds after launch, before it
-# compiles a single script — fleet memory pressure, not this repo. Incidents
-# look like several 137s across jobs/VMs with identical trees going green on
-# rerun. Remedy: rerun failed jobs; if the flare-up persists, wait it out.
-# The diagnostics steps below capture dmesg proof when this strikes.
+# Runbook for exit code 137 ("Killed") in the Unity jobs: something SIGKILLs
+# the editor seconds after launch, mid-assembly-reload, before it compiles a
+# single script. Incidents look like several 137s across jobs/VMs with
+# identical trees going green on rerun — never a code problem. Remedy: rerun
+# failed jobs; if the flare-up persists, wait it out.
+# NOTE (2026-10-23 incident): host dmesg showed no OOM-killer lines and free
+# reported GBs available seconds after a kill, so this is NOT plain host
+# memory exhaustion — runner governance / systemd-oomd are suspects. The
+# diagnostics steps below exist to catch the real killer; read their output
+# before theorizing, and update this note when it is identified.
 name: CI
 
 on:
@@ -80,10 +84,10 @@ jobs:
           testMode: ${{ matrix.testMode }}
           artifactsPath: test-results/${{ matrix.testMode }}
           checkName: ${{ matrix.testMode }} Test Results
-      # Proof for the next 137 incident (see runbook above): the kernel logs
-      # OOM kills host-side even when Unity dies inside docker. dmesg needs
-      # root on these runners; every probe is guarded so a diagnostics
-      # failure can never fail the job on its own.
+      # Evidence for the next 137 incident (see runbook above). Every probe is
+      # guarded so diagnostics can never fail the job on their own, but probe
+      # *failures* stay visible (2>&1): "no OOM lines" must mean a clean log,
+      # not a broken probe.
       # The failure() arm is load-bearing, not redundant: an if: without a
       # status-check function is implicitly ANDed with success(), so after a
       # hard attempt failure this step would be skipped without it. (That
@@ -92,12 +96,21 @@ jobs:
       - name: Capture OOM diagnostics on failure
         if: failure() || steps.tests1.outcome == 'failure' || steps.tests2.outcome == 'failure'
         run: |
-          echo '--- memory ---'
+          sudo -n true 2>&1 && echo 'sudo: OK' || echo 'sudo: UNAVAILABLE'
+          echo '--- memory / disk ---'
           free -h || true
-          echo '--- OOM killer activity (dmesg) ---'
-          sudo dmesg --time-format=iso 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
-          echo '--- OOM killer activity (journal) ---'
-          journalctl -k 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
+          df -h / /tmp 2>&1 | head -6 || true
+          echo '--- kernel OOM lines (dmesg) ---'
+          sudo -n dmesg 2>&1 | grep -aiE 'oom|killed process' | tail -20 || echo '(no matching dmesg lines)'
+          echo '--- kernel tail (unfiltered) ---'
+          sudo -n dmesg 2>&1 | tail -6 || true
+          echo '--- system journal: oom/docker/memory warnings ---'
+          sudo -n journalctl -b -p warning --no-pager 2>&1 | grep -aiE 'oom|kill|docker|memory' | tail -20 || echo '(no matching journal lines)'
+          echo '--- exited containers (OOMKilled flag?) ---'
+          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' 2>&1 | head -6 || true
+          for c in $(docker ps -aq 2>/dev/null | head -5); do
+            docker inspect -f '{{.Name}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' "$c" 2>&1 || true
+          done
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -159,19 +172,26 @@ jobs:
           targetPlatform: StandaloneOSX
           buildName: AxePath
           buildsPath: build
-      # Same OOM proof as the test job (see runbook above). Guarded so it
-      # can never fail the job on its own. failure() defeats the implicit
-      # success() gate (see test job); the old "Fail the job..." step was
-      # dead for the same reason and is gone.
+      # Same evidence collector as the test job (see runbook and the comment
+      # there). failure() defeats the implicit success() gate.
       - name: Capture OOM diagnostics on failure
         if: failure() || steps.build1.outcome == 'failure' || steps.build2.outcome == 'failure'
         run: |
-          echo '--- memory ---'
+          sudo -n true 2>&1 && echo 'sudo: OK' || echo 'sudo: UNAVAILABLE'
+          echo '--- memory / disk ---'
           free -h || true
-          echo '--- OOM killer activity (dmesg) ---'
-          sudo dmesg --time-format=iso 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
-          echo '--- OOM killer activity (journal) ---'
-          journalctl -k 2>/dev/null | grep -aiE 'oom|killed process' | tail -20 || true
+          df -h / /tmp 2>&1 | head -6 || true
+          echo '--- kernel OOM lines (dmesg) ---'
+          sudo -n dmesg 2>&1 | grep -aiE 'oom|killed process' | tail -20 || echo '(no matching dmesg lines)'
+          echo '--- kernel tail (unfiltered) ---'
+          sudo -n dmesg 2>&1 | tail -6 || true
+          echo '--- system journal: oom/docker/memory warnings ---'
+          sudo -n journalctl -b -p warning --no-pager 2>&1 | grep -aiE 'oom|kill|docker|memory' | tail -20 || echo '(no matching journal lines)'
+          echo '--- exited containers (OOMKilled flag?) ---'
+          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}' 2>&1 | head -6 || true
+          for c in $(docker ps -aq 2>/dev/null | head -5); do
+            docker inspect -f '{{.Name}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' "$c" 2>&1 || true
+          done
       - uses: actions/upload-artifact@v7
         with:
           name: AxePath-macOS
